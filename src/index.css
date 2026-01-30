@@ -1,1 +1,23 @@
 @import "tailwindcss";
+
+.user-bubble::after {
+    content: '';
+    position: absolute;
+    background-color: var(--color-blue-500);
+    top: 0;
+    left: -10px;
+    height: 10px;
+    width: 10px;
+    clip-path: polygon(0 0, 100% 100%, 100% 0);
+}
+
+.ai-bubble::after {
+    content: '';
+    position: absolute;
+    background-color: #C4C7C7;
+    top: 0;
+    right: -10px;
+    height: 10px;
+    width: 10px;
+    clip-path: polygon(0 0, 0 100%, 100% 0);
+}
