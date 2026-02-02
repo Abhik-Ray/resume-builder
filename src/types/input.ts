@@ -3,15 +3,15 @@ export interface JobParams {
 }
 
 export interface WorkHistory {
-    companyName: string;
-    projectName: string;
-    tasks: string[];
+  companyName: string;
+  projectName: string;
+  tasks: string[];
 }
 
 export interface UserData {
-    currentRole: string;
-    yearsOfExperience: string;
-    requireRemote: string;
-    rawWorkHistory: WorkHistory[];
-    hardSkills: string[];
+  currentRole: string;
+  yearsOfExperience: string;
+  requireRemote: boolean;
+  rawWorkHistory: WorkHistory[];
+  hardSkills: string[];
 }
