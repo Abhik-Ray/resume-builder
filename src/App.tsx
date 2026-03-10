@@ -6,7 +6,7 @@ import { PDFViewer } from "@react-pdf/renderer";
 import { SkillsData } from "./data/SkillsData";
 import { SummaryData } from "./data/SummaryData";
 import { config } from "./config";
-import { generateResumeSection } from "./utils/AIStudioHelpers";
+import { generateResumeSection } from "./utils/AIResumeBuilder";
 import { useState } from "react";
 import { userData } from "./data/UserData";
 
