@@ -13,6 +13,7 @@
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
+    "baseUrl": ".",
     "noEmit": true,
     "jsx": "react-jsx",
 
@@ -27,5 +28,5 @@
   "paths": {
     "@/*": ["./src/*"]
   },
-  "include": ["src"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts"]
 }
