@@ -16,45 +16,18 @@ import { PDFViewer } from "@react-pdf/renderer";
 import { Stepper } from "./components/ui/stepper";
 
 const steps = [
-  { no: 0, title: "Job Description", description: "Paste Job Desription" },
+  { no: 0, title: "1. Job Description", description: "Paste Job Desription" },
   {
     no: 1,
-    title: "Job Review",
+    title: "2. Job Review",
     description: "AI will review the job based on your parameters",
   },
   {
     no: 2,
-    title: "Resume Rebuild",
+    title: "3. Resume Rebuild",
     description: "Rebuild Resume related to the required parameters",
   },
 ];
-
-// type StepNumbers = (typeof steps)[number]["no"];
-
-// const sampleJudgeResponse = {
-//   overallMatchScore: 30,
-//   matchAnalysis:
-//     "This role aligns well with your desired Front End Developer role and core tech stack, particularly React and JavaScript. However, the absence of any mention of remote work is a significant deal-breaker, as your preference is for a fully remote position. Salary information is also missing.",
-//   pros: [
-//     "The role is a direct match for 'Front End Developer' and 'Software Developer' desired roles.",
-//     "Strong alignment with core tech stack, specifically React and JavaScript.",
-//     "Opportunity to work with the MERN stack (MongoDB, Express.js, React, Node.js).",
-//     "Responsibilities include developing new user-facing features and building reusable components.",
-//   ],
-//   cons: [
-//     "The job description does not mention remote work, which is a deal-breaker for your preferred work model.",
-//     "Salary information is not provided, making it impossible to assess against your target.",
-//     "Specific tech like React Native, Next.js, and Typescript are not explicitly mentioned as requirements.",
-//     "The role is not in game development, which is one of your desired areas.",
-//   ],
-//   isRemote: ["On Site"],
-//   redFlags: [
-//     "No mention of remote work, which is a deal-breaker for the candidate.",
-//     "The phrase 'fast-paced environment' often implies high pressure and potential for overwork.",
-//     "Expectations to 'Provide technical guidance and mentorship to junior developers' and 'Lead code reviews' with only '3+ years of professional experience' might indicate high expectations for the experience level.",
-//   ],
-//   verdict: "Hard Pass",
-// };
 
 export const NewApp = () => {
   const [geminiKey, setGeminiKey] = useState<string>("");
@@ -177,12 +150,13 @@ export const NewApp = () => {
 
   return (
     <div className="flex flex-col justify-center items-center w-screen overflow-y-auto">
-      <div className="flex flex-col w-xl gap-4">
+      <div className="flex flex-col w-full max-w-xl p-4 gap-4">
         <Stepper
           steps={steps}
           currentStep={step}
           onStepChange={setStep}
         />
+        <Button className="mb-4 mt-2" variant={'destructive'} onClick={() => window.location.reload()}>Reset</Button>
         {stepError && (
           <div className="border border-red-600 text-red-400 bg-red-50 rounded-2xl text-xs p-2">
             {stepError}
@@ -238,7 +212,7 @@ export const NewApp = () => {
             {judgeResponse ? (
               <div className="flex flex-col justify-center items-center w-full">
                 <JudgeResponse judgeResponse={judgeResponse} />
-                <Button className=" w-50 p-2 bg-blue-700 text-white rounded-3xl cursor-pointer" onClick={onGenerateClick} disabled={isPdfLoading}>
+                <Button className="my-4 w-50 p-2 bg-blue-700 text-white rounded-3xl cursor-pointer" onClick={onGenerateClick} disabled={isPdfLoading}>
                   {!isPdfLoading ? judgeResponse.overallMatchScore > 70
                     ? "Proceed with Resume"
                     : "Still proceed with resume" : 'PDF is Loading'}
