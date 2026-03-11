@@ -88,6 +88,7 @@ export const judgeJobPosting = async (
   const prompt = `
     ### ROLE
     You are an expert Career Strategist and Technical Recruiter. Your job is to objectively evaluate a job description against a candidate's specific career preferences and boundaries.
+    It's okay if the job requirement is a little out of the skillset of the user, but it should be close enough.
 
     ### CANDIDATE PREFERENCES
     <PREFERENCES>
