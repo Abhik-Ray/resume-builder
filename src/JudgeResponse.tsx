@@ -14,7 +14,7 @@ export const JudgeResponse: FC<JudgeRespoonsePropsType> = ({
     <div className="flex flex-col w-full h-full justify-center items-center">
       <div className="w-3/4 h-3/4 overflow-none flex flex-col gap-4 border border-blue-500 pl-2 p-1 rounded-2xl">
         <div
-          className="
+          className=" flex flex-col gap-4 mb-4
        overflow-auto scrollbar
       [&::-webkit-scrollbar]:w-1.25 [&::-webkit-scrollbar-track]:bg-transparent
       [&::-webkit-scrollbar-thumb]:bg-slate-400 [&::-webkit-scrollbar-thumb]:rounded-full
