@@ -29,12 +29,15 @@ const steps = [
   },
 ];
 
+const getLocalKey = () => {
+  return localStorage.getItem("geminiKey") ?? "";
+};
+
 export const NewApp = () => {
-  const [geminiKey, setGeminiKey] = useState<string>("");
+  const [geminiKey, setGeminiKey] = useState<string>(getLocalKey());
   const [jobDescription, setJobDescription] = useState("");
   const [step, setStep] = useState<number>(0);
-  const [judgeResponse, setJudgeResponse] =
-    useState<JudgeResponseType>();
+  const [judgeResponse, setJudgeResponse] = useState<JudgeResponseType>();
   const [stepError, setStepError] = useState<string | null>(null);
   const [aiCore, setAICore] = useState<GoogleGenAI | null>(null);
   const [isJudgementLoading, setIsJudgementLoading] = useState<boolean>(false);
@@ -68,6 +71,8 @@ export const NewApp = () => {
     }
 
     const isGeminiKeyValid = await isHealthy();
+
+    localStorage.setItem('geminiKey', geminiKey);
 
     if (!isGeminiKeyValid) {
       setStepError("Gemini servers unreachable or invalid key");
@@ -151,12 +156,14 @@ export const NewApp = () => {
   return (
     <div className="flex flex-col justify-center items-center w-screen overflow-y-auto">
       <div className="flex flex-col w-full max-w-xl p-4 gap-4">
-        <Stepper
-          steps={steps}
-          currentStep={step}
-          onStepChange={setStep}
-        />
-        <Button className="mb-4 mt-2" variant={'destructive'} onClick={() => window.location.reload()}>Reset</Button>
+        <Stepper steps={steps} currentStep={step} onStepChange={setStep} />
+        <Button
+          className="mb-4 mt-2"
+          variant={"destructive"}
+          onClick={() => window.location.reload()}
+        >
+          Reset
+        </Button>
         {stepError && (
           <div className="border border-red-600 text-red-400 bg-red-50 rounded-2xl text-xs p-2">
             {stepError}
@@ -201,7 +208,13 @@ export const NewApp = () => {
               onClick={onJudgeClick}
               disabled={isJudgementLoading}
             >
-              {!isJudgementLoading ? 'Judge the job ⚖️' : <>Judging... <Loader2 className="animate-spin"/></>}
+              {!isJudgementLoading ? (
+                "Judge the job ⚖️"
+              ) : (
+                <>
+                  Judging... <Loader2 className="animate-spin" />
+                </>
+              )}
             </Button>
           </>
         )}
@@ -212,10 +225,16 @@ export const NewApp = () => {
             {judgeResponse ? (
               <div className="flex flex-col justify-center items-center w-full">
                 <JudgeResponse judgeResponse={judgeResponse} />
-                <Button className="my-4 w-50 p-2 bg-blue-700 text-white rounded-3xl cursor-pointer" onClick={onGenerateClick} disabled={isPdfLoading}>
-                  {!isPdfLoading ? judgeResponse.overallMatchScore > 70
-                    ? "Proceed with Resume"
-                    : "Still proceed with resume" : 'PDF is Loading'}
+                <Button
+                  className="my-4 w-50 p-2 bg-blue-700 text-white rounded-3xl cursor-pointer"
+                  onClick={onGenerateClick}
+                  disabled={isPdfLoading}
+                >
+                  {!isPdfLoading
+                    ? judgeResponse.overallMatchScore > 70
+                      ? "Proceed with Resume"
+                      : "Still proceed with resume"
+                    : "PDF is Loading"}
                 </Button>
               </div>
             ) : (
