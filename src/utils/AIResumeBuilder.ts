@@ -72,8 +72,8 @@ export const generateResumeSection = async (
       temperature = 0.3;
       targetSchema = EXPERIENCE_SCHEMA;
       specificInstructions = `
-        1. **Analyze** the <TARGET_JOB_DESCRIPTION> to identify the top 3 critical skills.
-        2. **Synthesize** the candidate's <RAW_WORK_HISTORY> into a single, optimized list of ATS friendly bullet points (aim for 3-5 strong points).
+        1. **Analyze** the <TARGET_JOB_DESCRIPTION> to identify the top 5 critical skills.
+        2. **Synthesize and Rewrite** the candidate's <RAW_WORK_HISTORY> into a single, optimized, rewritted list of ATS friendly bullet points and keywords (aim for 5-7 strong points).
         3. **Filter & Merge:** - **DISCARD** weak or irrelevant tasks (e.g., "attended meetings").
            - **MERGE** related small tasks into one strong achievement.
            - **RANK** the most impactful points at the top.
@@ -83,10 +83,10 @@ export const generateResumeSection = async (
 
     case "skills":
       modelName = "gemini-2.5-flash";
-      temperature = 0.1; // Very low temp for pure extraction
+      temperature = 0.1;
       targetSchema = SKILLS_SCHEMA;
       specificInstructions =
-        "Extract hard technical skills from the user history that match the job description. Maximum 8 skills. Keep the wording ATS friendly";
+        "Extract hard technical skills from the user history that match the job description. Maximum 8 skills. Rewrite the wording for ATS friendliness as necessary";
       break;
   }
 

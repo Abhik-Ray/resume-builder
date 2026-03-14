@@ -80,8 +80,13 @@ const styles = StyleSheet.create({
   skills: {
     display: "flex",
     flexDirection: "row",
-    justifyContent: "space-between",
+    flexWrap: "wrap", // Allows items to move to the next line
+    width: "100%",
+  },
+  skillItem: {
+    width: "20%", // Exactly 1/5th of the container width
     fontSize: NORMAL_FONT_SIZE,
+    marginTop: "4px",
   },
 });
 
@@ -94,7 +99,7 @@ const references = [
 ];
 
 const decorateExperience = (experience: string[]) => {
-  return experience.map(exp => "• " + exp).join("\n");
+  return experience.map((exp) => "• " + exp).join("\n");
 };
 
 export const MyDocument: FC<I_PdfProps> = (props) => (
@@ -131,7 +136,11 @@ export const MyDocument: FC<I_PdfProps> = (props) => (
                 <Text style={styles.positionDetails}>{exp.position}</Text>
               </View>
               <Text>{exp.range}</Text>
-              <Text>{exp.canTweak && props.mainExperienceData ? decorateExperience(props.mainExperienceData) : exp.description}</Text>
+              <Text>
+                {exp.canTweak && props.mainExperienceData
+                  ? decorateExperience(props.mainExperienceData)
+                  : exp.description}
+              </Text>
             </View>
           ))}
         </View>
@@ -145,11 +154,11 @@ export const MyDocument: FC<I_PdfProps> = (props) => (
         <View>
           <Text style={styles.heading}>SKILLS</Text>
           <View style={styles.skills}>
-            {props.skillsData
-              .flatMap((s, idx, arr) => (idx !== arr.length - 1 ? [s, "•"] : s))
-              .map((s) => (
-                <Text>{s}</Text>
-              ))}
+            {props.skillsData.map((s, idx) => (
+              <View key={idx} style={styles.skillItem}>
+                <Text>• {s}</Text>
+              </View>
+            ))}
           </View>
         </View>
       </View>
