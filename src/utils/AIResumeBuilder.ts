@@ -86,7 +86,7 @@ export const generateResumeSection = async (
       temperature = 0.1;
       targetSchema = SKILLS_SCHEMA;
       specificInstructions =
-        "Extract hard technical skills from the user history that match the job description. Maximum 8 skills. Rewrite the wording for ATS friendliness as necessary";
+        "Extract hard technical skills from the user history that match the job description. Rewrite the wording for ATS friendliness as necessary. Do not add verbose skills, generalize them (eg: If the Job requies Google Analytics Tag Manager GA4, output 'Google Analytics')";
       break;
   }
 
