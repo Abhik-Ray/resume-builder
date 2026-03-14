@@ -42,7 +42,7 @@ ${m}`)}return o}),kp=rG(n9);class r9 extends t9{create(e,n){var r;const{api_vers
            - **MERGE** related small tasks into one strong achievement.
            - **RANK** the most impactful points at the top.
         4. **Format:** Output ONLY the final bullet point text. Do not include original tasks or metadata.
-      `;break;case"skills":i="gemini-2.5-flash",a=.1,o=_q,l="Extract hard technical skills from the user history that match the job description. Maximum 8 skills. Rewrite the wording for ATS friendliness as necessary";break}const c=`
+      `;break;case"skills":i="gemini-2.5-flash",a=.1,o=_q,l="Extract hard technical skills from the user history that match the job description. Rewrite the wording for ATS friendliness as necessary. Do not add verbose skills, generalize them (eg: If the Job requies Google Analytics Tag Manager GA4, output 'Google Analytics')";break}const c=`
     ### ROLE
     You are an expert Resume Strategist and ATS Specialist.
     
