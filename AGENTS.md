@@ -17,9 +17,12 @@ Stack: React 19 (with React Compiler), TypeScript (strict), Vite 7, Tailwind CSS
 | `pnpm lint` | ESLint |
 | `pnpm test` | Run the Vitest suite once (`pnpm test:watch` to watch, `pnpm coverage` for coverage) |
 | `pnpm build` | Type-check (`tsc -b`) and production build |
-| `pnpm deploy` | Build and push `dist/` to the `gh-pages` branch (publishes the live site — don't run without being asked) |
 
 Before finishing a change, run `pnpm lint`, `pnpm test` and `pnpm build`; all must pass.
+
+## CI/CD
+
+`.github/workflows/ci.yml` runs lint, test and build on every pull request and push. On a push to `main`, a passing build is deployed to GitHub Pages (Pages source: GitHub Actions). There is no manual deploy command: pushing to `main` publishes the live site, so don't push without being asked. Node is pinned in `.nvmrc` and pnpm in `packageManager` in `package.json`; CI installs with `--frozen-lockfile`, so commit `pnpm-lock.yaml` with dependency changes.
 
 ## Testing
 

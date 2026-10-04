@@ -42,4 +42,6 @@ Model ids are set in `src/utils/models.ts`.
 | `pnpm dev` | Start the dev server |
 | `pnpm build` | Type-check and build |
 | `pnpm lint` | Run ESLint |
-| `pnpm deploy` | Build and publish to GitHub Pages |
+| `pnpm test` | Run the tests |
+
+Pushing to `main` deploys to GitHub Pages: the CI workflow runs lint, tests and build, then publishes `dist/`.
