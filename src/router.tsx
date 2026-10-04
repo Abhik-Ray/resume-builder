@@ -1,4 +1,4 @@
-import { createHashRouter, Navigate } from "react-router";
+import { createHashRouter, Navigate, type RouteObject } from "react-router";
 import { lazy } from "react";
 import { DashboardLayout } from "./layouts/DashboardLayout";
 
@@ -10,7 +10,8 @@ const SettingsHome = lazy(() => import("./pages/settings/SettingsHome"));
 const ApiKeysSection = lazy(() => import("./pages/settings/ApiKeysSection"));
 const ResumeDataSection = lazy(() => import("./pages/settings/ResumeDataSection"));
 
-export const router = createHashRouter([
+// Exported separately so tests can mount them in a memory router
+export const routes: RouteObject[] = [
   {
     path: "/",
     element: <DashboardLayout />,
@@ -31,4 +32,6 @@ export const router = createHashRouter([
       { path: "*", element: <Navigate to="/" replace /> },
     ],
   },
-]);
+];
+
+export const router = createHashRouter(routes);

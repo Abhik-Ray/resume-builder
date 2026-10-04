@@ -15,10 +15,20 @@ Stack: React 19 (with React Compiler), TypeScript (strict), Vite 7, Tailwind CSS
 | `pnpm install` | Install dependencies |
 | `pnpm dev` | Dev server |
 | `pnpm lint` | ESLint |
+| `pnpm test` | Run the Vitest suite once (`pnpm test:watch` to watch, `pnpm coverage` for coverage) |
 | `pnpm build` | Type-check (`tsc -b`) and production build |
 | `pnpm deploy` | Build and push `dist/` to the `gh-pages` branch (publishes the live site — don't run without being asked) |
 
-There is no test suite yet. Before finishing a change, run `pnpm lint` and `pnpm build`; both must pass.
+Before finishing a change, run `pnpm lint`, `pnpm test` and `pnpm build`; all must pass.
+
+## Testing
+
+Vitest + React Testing Library in jsdom (config in `vite.config.ts`). Tests sit next to their file as `*.test.ts(x)`.
+- `src/test/setup.ts` loads `fake-indexeddb` (real Dexie in tests) and jest-dom matchers.
+- `src/test/utils.tsx`: `resetDb()` for a clean database per test, and `renderWithRouter()` for anything using router hooks (`useBlocker` needs a data router).
+- Mock AI calls at the module boundary (`vi.mock("../../utils/AIHealthCheck")`, `AIResumeJudge`, `AIResumeBuilder`); never hit Gemini.
+- Mock `@react-pdf/renderer` with `vi.mock("@react-pdf/renderer", () => import("<rel>/test/reactPdfMock"))` so PDF layouts render as DOM.
+- `router.tsx` exports `routes` so route tests can use `createMemoryRouter(routes)`.
 
 ## Layout
 
@@ -76,5 +86,6 @@ Hash URLs (`#/`, `#/resume`, `#/settings`, `#/settings/api-keys`, `#/settings/re
 - **`@/` path alias doesn't work.** In `tsconfig.app.json`, `paths` sits outside `compilerOptions` and Vite has no `resolve.alias`. Files added with the shadcn CLI import from `@/...` and must be rewritten to relative paths (or the alias fixed in both places).
 - **`components.json` still says `iconLibrary: "phosphor"`,** but `@phosphor-icons/react` was removed. Components added with the shadcn CLI may import Phosphor; switch them to `lucide-react`.
 - **`vite.config.ts` uses `base: '/resume-builder/'`.** Asset paths must work under that prefix.
+- **react-hook-form and the React Compiler clash on `reset`.** The compiler memoizes `register()` calls, but react-hook-form forgets its fields on every `reset` (including the `values` prop syncing) and needs them to register again. Components that call `register` on a form using `reset` or `values` must start with `"use no memo";` (see `ResumeDataSection.tsx`). Use the function-level directive; Rollup warns about a module-level one.
 - **react-pdf is strict about children:** strings must be inside `<Text>`, and stray whitespace between elements inside a `<View>` causes warnings. Lists need `key`s.
 - **Prompt changes affect output quality directly.** Keep the numbered instruction blocks in `AIResumeJudge.ts` / `AIResumeBuilder.ts` coherent, and keep the job description and candidate data inside their XML-style tags.

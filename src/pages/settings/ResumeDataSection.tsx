@@ -41,7 +41,12 @@ const ResumeDataSection = () => {
 
 export default ResumeDataSection;
 
+// Components that use the form opt out of the React Compiler ("use no memo"). It memoizes
+// register() calls because the form object never changes, but react-hook-form forgets its fields
+// on every reset and needs inputs to register again on the next render. With memoization,
+// "Discard changes" and "Reset to defaults" blanked the inputs and some errors never showed.
 const ResumeDataForm = ({ data, isCustom }: { data: ResumeDataType; isCustom: boolean }) => {
+  "use no memo";
   const form = useForm({
     resolver: zodResolver(resumeDataSchema),
     // Re-syncs the form when the saved data changes (save, reset to defaults)
@@ -163,6 +168,7 @@ const Section = ({ title, children }: { title: string; children: ReactNode }) =>
 );
 
 const ProfileSection = ({ form }: { form: ResumeForm }) => {
+  "use no memo"; // see the note above ResumeDataForm
   const {
     register,
     control,
@@ -200,6 +206,7 @@ const ProfileSection = ({ form }: { form: ResumeForm }) => {
 };
 
 const CareerSection = ({ form }: { form: ResumeForm }) => {
+  "use no memo"; // see the note above ResumeDataForm
   const {
     register,
     formState: { errors },
@@ -248,6 +255,7 @@ const SkillsSection = ({ form }: { form: ResumeForm }) => (
 );
 
 const ExperienceSection = ({ form }: { form: ResumeForm }) => {
+  "use no memo"; // see the note above ResumeDataForm
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "experience" });
   const listError = form.formState.errors.experience;
   return (
@@ -285,6 +293,7 @@ interface PositionFieldsProps {
 }
 
 const PositionFields = ({ form, index, onRemove }: PositionFieldsProps) => {
+  "use no memo"; // see the note above ResumeDataForm
   const {
     register,
     control,
@@ -387,6 +396,7 @@ const PositionFields = ({ form, index, onRemove }: PositionFieldsProps) => {
 };
 
 const PreferencesSection = ({ form }: { form: ResumeForm }) => {
+  "use no memo"; // see the note above ResumeDataForm
   const {
     register,
     control,

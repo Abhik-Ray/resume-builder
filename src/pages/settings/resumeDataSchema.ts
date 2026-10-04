@@ -76,7 +76,8 @@ export const resumeDataSchema = z.object({
     .string()
     .trim()
     .regex(/^\d{1,2}(\.\d{1,2})?$/, "Enter a number such as 3 or 3.5")
-    .refine((v) => Number(v) <= 60, "Must be 60 or less"),
+    // zod still runs this when the regex fails; NaN passes so only the format error shows
+    .refine((v) => !(Number(v) > 60), "Must be 60 or less"),
   requireRemote: z.boolean(),
   summary: requiredText("Summary", 1000),
   hardSkills: textList("Skill", { max: 60 }),
