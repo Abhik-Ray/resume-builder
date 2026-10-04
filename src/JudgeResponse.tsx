@@ -1,13 +1,13 @@
 import { ChartLine, Flag, MinusCircle, PlusCircle } from "lucide-react";
 
 import type { FC } from "react";
-import { Gauge } from "./Guage";
+import { Gauge } from "./Gauge";
 import type { JudgeResponseType } from "./utils/AIResumeJudge";
 
-interface JudgeRespoonsePropsType {
+interface JudgeResponsePropsType {
   judgeResponse: JudgeResponseType;
 }
-export const JudgeResponse: FC<JudgeRespoonsePropsType> = ({
+export const JudgeResponse: FC<JudgeResponsePropsType> = ({
   judgeResponse,
 }) => {
   return (
@@ -62,7 +62,7 @@ export const JudgeResponse: FC<JudgeRespoonsePropsType> = ({
               <Flag className="stroke-red-400" />
               <h2 className="font-bold">Red Flags</h2>
             </div>
-            <ol>
+            <ol className="list-decimal pl-4">
               {judgeResponse.redFlags.map((redFlag, idx) => (
                 <li key={idx}>{redFlag}</li>
               ))}

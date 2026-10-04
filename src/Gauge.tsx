@@ -14,7 +14,8 @@ export const Gauge: FC<GaugePropsType> = ({ value = 40, size = 250 }) => {
   
   // Calculate the 'gap' (how much of the stroke is hidden)
   // At 0%, offset = circumference; At 100%, offset = 0
-  const offset = circumference - (value / 100) * circumference;
+  const clamped = Math.min(100, Math.max(0, value));
+  const offset = circumference - (clamped / 100) * circumference;
 
   return (
     <div style={{ width: size }} className="relative flex flex-col items-center">
@@ -48,7 +49,7 @@ export const Gauge: FC<GaugePropsType> = ({ value = 40, size = 250 }) => {
       
       {/* Percentage Label */}
       <div className="absolute bottom-0 text-center">
-        <span className="text-3xl font-bold text-slate-800">{value}%</span>
+        <span className="text-3xl font-bold text-slate-800">{clamped}%</span>
       </div>
     </div>
   );

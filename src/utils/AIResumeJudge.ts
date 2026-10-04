@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { MODELS } from "./models";
 
 // 1. Define the User Preferences Input Type
 export interface JobPreferences {
@@ -9,6 +10,14 @@ export interface JobPreferences {
   dealBreakers: string[]; // e.g., "Weekend work", "Legacy codebase"
   careerGoals: string; // e.g., "Looking for mentorship", "Want to lead a team"
 }
+
+const REMOTE_LEVELS = [
+  "On Site",
+  "Hybrid",
+  "Possible Remote",
+  "Fully Remote with possibility to work from India",
+  "Fully Remote very likely to work from India",
+];
 
 // 2. Define the strict JSON Schema for the output
 const JOB_JUDGMENT_SCHEMA = {
@@ -37,10 +46,9 @@ const JOB_JUDGMENT_SCHEMA = {
         "Aspects of the job that misalign with the user's preferences or represent missing data.",
     },
     isRemote: {
-      type: "ARRAY",
-      items: { type: "STRING" },
-      description:
-        "Rate how likely is the job more remote, answer in any of the following strings: 'On Site', 'Hybrid', 'Possible Remote', 'Fully Remote with possibility to work from India', 'Fully Remote very likely to work from India'",
+      type: "STRING",
+      enum: REMOTE_LEVELS,
+      description: "How likely the job is to be remote, picked from the allowed values.",
     },
     redFlags: {
       type: "ARRAY",
@@ -70,7 +78,7 @@ export interface JudgeResponseType {
   matchAnalysis: string;
   pros: string[];
   cons: string[];
-  isRemote: string[];
+  isRemote: string;
   redFlags: string[];
   verdict: string;
 }
@@ -80,9 +88,9 @@ export const judgeJobPosting = async (
   client: GoogleGenAI,
   jobDescription: string,
   preferences: JobPreferences,
-) => {
-  // Use Gemini 2.5 Flash: It's fast, cost-effective, and excellent at structured data extraction/analysis.
-  const modelName = "gemini-2.5-flash";
+): Promise<JudgeResponseType> => {
+  // Use the fast model: cost-effective and excellent at structured data extraction/analysis.
+  const modelName = MODELS.fast;
   const temperature = 0.2; // Low temperature for objective, analytical reasoning
 
   const prompt = `
@@ -101,9 +109,9 @@ export const judgeJobPosting = async (
     </JOB_DESCRIPTION>
 
     ### TASK INSTRUCTIONS
-    1. **Analyze:** Compare the jobscore out of 100 based on alignment. Be strict. 
-    3. **Identify Red Flags:** Look for common corporate red  description against the candidate's preferences, paying special attention to deal-breakers and required tech stacks.
-    2. **Score:** Calculate a realistic match flags (e.g., "fast-paced environment" meaning overwork, unrealistic requirements for the pay, vague descriptions).
+    1. **Analyze:** Compare the job description against the candidate's preferences, paying special attention to deal-breakers and required tech stacks.
+    2. **Score:** Calculate a realistic match score out of 100 based on alignment. Be strict.
+    3. **Identify Red Flags:** Look for common corporate red flags (e.g., "fast-paced environment" meaning overwork, unrealistic requirements for the pay, vague descriptions).
     4. **Output:** Respond ONLY with valid JSON matching the enforced schema. Do not include markdown formatting or extra text outside the JSON.
   `;
 

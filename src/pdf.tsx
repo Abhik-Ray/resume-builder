@@ -1,6 +1,6 @@
 import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 
-import { ExperienceData } from "./data/ExperienceData";
+import { ResumeData } from "./data/ResumeData";
 import type { FC } from "react";
 
 interface I_PdfProps {
@@ -90,36 +90,30 @@ const styles = StyleSheet.create({
   },
 });
 
-const references = [
-  "abhik.raya01@gmail.com",
-  "+918584063964",
-  "Hyderabad, TG",
-  "https://www.linkedin.com/in/abhik-ray01/",
-  "https://abhik-ray.github.io/portfolio/",
-];
-
 const decorateExperience = (experience: string[]) => {
   return experience.map((exp) => "• " + exp).join("\n");
 };
 
+const { profile } = ResumeData;
+
 export const MyDocument: FC<I_PdfProps> = (props) => (
   <Document
-    title="Abhik Ray Resume"
-    author="Abhik Ray"
+    title={`${profile.name} Resume`}
+    author={profile.name}
     subject="Resume"
     language="en-us"
   >
     <Page size="A4" style={styles.page}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text>ABHIK RAY</Text>
+          <Text>{profile.name.toUpperCase()}</Text>
           <View style={styles.references}>
-            {references
+            {profile.contacts
               .flatMap((r, idx, arr) =>
                 idx !== arr.length - 1 ? [r, " • "] : r,
               )
-              .map((r) => (
-                <Text>{r}</Text>
+              .map((r, idx) => (
+                <Text key={idx}>{r}</Text>
               ))}
           </View>
         </View>
@@ -129,7 +123,7 @@ export const MyDocument: FC<I_PdfProps> = (props) => (
         </View>
         <View>
           <Text style={styles.heading}>EXPERIENCE</Text>
-          {ExperienceData.map((exp, idx) => (
+          {ResumeData.experience.map((exp, idx) => (
             <View style={styles.experience} key={idx}>
               <View style={styles.flexRow}>
                 <Text style={styles.companyDetails}>{exp.companyName}, </Text>
@@ -137,18 +131,19 @@ export const MyDocument: FC<I_PdfProps> = (props) => (
               </View>
               <Text>{exp.range}</Text>
               <Text>
-                {exp.canTweak && props.mainExperienceData
-                  ? decorateExperience(props.mainExperienceData)
-                  : exp.description}
+                {decorateExperience(
+                  exp.canTweak ? props.mainExperienceData : exp.bullets,
+                )}
               </Text>
             </View>
           ))}
         </View>
         <View style={styles.education}>
           <Text style={styles.heading}>EDUCATION</Text>
-          <Text>KIIT</Text>
+          <Text>{profile.education.institute}</Text>
           <View style={styles.flexRow}>
-            <Text>Bachelor of Technology • </Text> <Text>Computer Science</Text>
+            <Text>{profile.education.degree} • </Text>
+            <Text>{profile.education.field}</Text>
           </View>
         </View>
         <View>

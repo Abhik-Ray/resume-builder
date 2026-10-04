@@ -1,75 +1,45 @@
-# React + TypeScript + Vite
+# Resume Builder
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+An AI-assisted tool that reviews a job description against your preferences, then tailors your resume to it and renders an ATS-friendly PDF.
 
-Currently, two official plugins are available:
+Built with React 19, Vite, Tailwind CSS, [`@google/genai`](https://www.npmjs.com/package/@google/genai) (Gemini) and [`@react-pdf/renderer`](https://react-pdf.org/).
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## How it works
 
-## React Compiler
+1. **Job Description** — paste your Gemini API key and the job description. The key is validated, then stored in your browser's `localStorage` (it never leaves your browser except for calls to Gemini).
+2. **Job Review** — Gemini scores the job against your preferences and lists pros, cons, red flags, remote likelihood and a verdict.
+3. **Resume Rebuild** — Gemini rewrites the summary, experience bullets and skills for the job, and the resume is shown as a PDF you can download.
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+## Getting started
 
-Note: This will impact Vite dev & build performances.
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+pnpm install
+pnpm dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Get a Gemini API key from [Google AI Studio](https://aistudio.google.com/apikey).
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Customising your data
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+All personal content lives in one file, `src/data/ResumeData.ts`:
+
+| Field | Purpose |
+| --- | --- |
+| `profile` | Name, contact details, education |
+| `experience` | Positions shown in the PDF. `canTweak` marks the one the AI rewrites; its `projects` are the raw work history sent to the AI |
+| `hardSkills` | Skills the AI picks from |
+| `summary`, `featuredSkills` | Defaults shown before generation |
+| `jobPreferences` | Preferences used to judge a job |
+
+The `userData` object the AI prompts receive is derived from this file.
+
+Model ids are set in `src/utils/models.ts`.
+
+## Scripts
+
+| Command | Description |
+| --- | --- |
+| `pnpm dev` | Start the dev server |
+| `pnpm build` | Type-check and build |
+| `pnpm lint` | Run ESLint |
+| `pnpm deploy` | Build and publish to GitHub Pages |

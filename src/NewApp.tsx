@@ -1,22 +1,24 @@
 import { GoogleGenAI } from "@google/genai";
-import { JobPreferenceData } from "./data/JobPreferenceData";
 import { Loader, Loader2 } from "lucide-react";
 import { judgeJobPosting, type JudgeResponseType } from "./utils/AIResumeJudge";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { verifyApiKey } from "./utils/AIHealthCheck";
 import { JudgeResponse } from "./JudgeResponse";
 import { Button } from "./components/ui/button";
 import { generateResumeSection } from "./utils/AIResumeBuilder";
-import { userData } from "./data/UserData";
-import { SummaryData } from "./data/SummaryData";
-import { SkillsData } from "./data/SkillsData";
-import { MainExperienceData } from "./data/MainExperienceData";
-import { MyDocument } from "./pdf";
-import { PDFViewer } from "@react-pdf/renderer";
+import {
+  defaultTweakableBullets,
+  ResumeData,
+  userData,
+} from "./data/ResumeData";
 import { Stepper } from "./components/ui/stepper";
 
+// The PDF renderer is large, so load it only when the resume is generated
+const loadResumePreview = () => import("./ResumePreview");
+const ResumePreview = lazy(loadResumePreview);
+
 const steps = [
-  { no: 0, title: "1. Job Description", description: "Paste Job Desription" },
+  { no: 0, title: "1. Job Description", description: "Paste Job Description" },
   {
     no: 1,
     title: "2. Job Review",
@@ -33,6 +35,9 @@ const getLocalKey = () => {
   return localStorage.getItem("geminiKey") ?? "";
 };
 
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : String(error);
+
 export const NewApp = () => {
   const [geminiKey, setGeminiKey] = useState<string>(getLocalKey());
   const [jobDescription, setJobDescription] = useState("");
@@ -42,25 +47,14 @@ export const NewApp = () => {
   const [aiCore, setAICore] = useState<GoogleGenAI | null>(null);
   const [isJudgementLoading, setIsJudgementLoading] = useState<boolean>(false);
   const [isPdfLoading, setIsPdfLoading] = useState<boolean>(false);
-  const [summaryData, setSummaryData] = useState(SummaryData);
-  const [experienceData, setExperienceData] =
-    useState<string[]>(MainExperienceData);
-  const [skillsData, setSkillsData] = useState(SkillsData);
-
-  console.log({
-    geminiKey,
-    jobDescription,
-    step,
-    judgeResponse,
-    stepError,
-  });
-
-  const initializeAICore = async (geminiKey: string) => {
-    return new GoogleGenAI({ apiKey: geminiKey });
-  };
+  const [summaryData, setSummaryData] = useState(ResumeData.summary);
+  const [experienceData, setExperienceData] = useState<string[]>(
+    defaultTweakableBullets,
+  );
+  const [skillsData, setSkillsData] = useState(ResumeData.featuredSkills);
 
   const onJudgeClick = async () => {
-    setStepError("");
+    setStepError(null);
     if (!geminiKey.length) {
       setStepError("Please Enter a valid Gemini Key");
       return;
@@ -70,87 +64,69 @@ export const NewApp = () => {
       return;
     }
 
-    const isGeminiKeyValid = await isHealthy();
-
-    localStorage.setItem('geminiKey', geminiKey);
-
-    if (!isGeminiKeyValid) {
-      setStepError("Gemini servers unreachable or invalid key");
-      return;
-    }
-
     setIsJudgementLoading(true);
+    try {
+      const aiCoreObject = new GoogleGenAI({ apiKey: geminiKey });
+      const { valid } = await verifyApiKey(aiCoreObject);
+      if (!valid) {
+        setStepError("Gemini servers unreachable or invalid key");
+        return;
+      }
 
-    const aiCoreObject = await initializeAICore(geminiKey);
+      localStorage.setItem("geminiKey", geminiKey);
+      setAICore(aiCoreObject);
 
-    setAICore(aiCoreObject);
-
-    if (!aiCoreObject) {
-      setStepError("Couldn't initialize aiCore");
-      return;
+      setJudgeResponse(
+        await judgeJobPosting(
+          aiCoreObject,
+          jobDescription,
+          ResumeData.jobPreferences,
+        ),
+      );
+      setStep(1);
+    } catch (error) {
+      setStepError(`Job review failed: ${getErrorMessage(error)}`);
+    } finally {
+      setIsJudgementLoading(false);
     }
-
-    setJudgeResponse(
-      await judgeJobPosting(aiCoreObject, jobDescription, JobPreferenceData),
-    );
-
-    setIsJudgementLoading(false);
-
-    setStep(1);
-  };
-
-  const isHealthy = async (): Promise<boolean> => {
-    return verifyApiKey(geminiKey)
-      .then((response) => response.valid)
-      .catch(() => false)
-      .finally(() => false);
-  };
-
-  const genarateSummary = async () => {
-    if (!aiCore) {
-      setStepError("Could not initialize Gemini");
-      return;
-    }
-    return generateResumeSection(aiCore, "summary", jobDescription, userData);
-  };
-
-  const genarateExperienceData = async () => {
-    if (!aiCore) {
-      setStepError("Could not initialize Gemini");
-      return;
-    }
-    return generateResumeSection(
-      aiCore,
-      "experience",
-      jobDescription,
-      userData,
-    );
-  };
-
-  const genarateSkills = async () => {
-    if (!aiCore) {
-      setStepError("Could not initialize Gemini");
-      return;
-    }
-    return generateResumeSection(aiCore, "skills", jobDescription, userData);
   };
 
   const onGenerateClick = async () => {
+    setStepError(null);
     if (!aiCore) {
       setStepError("Could not initialize Gemini");
       return;
     }
+
     setIsPdfLoading(true);
-    const summary = await genarateSummary();
-    const skills = await genarateSkills();
-    const experience = await genarateExperienceData();
+    // Start downloading the PDF renderer while the AI calls run
+    loadResumePreview().catch(() => {});
+    try {
+      const [summary, skills, experience] = await Promise.all([
+        generateResumeSection(aiCore, "summary", jobDescription, userData),
+        generateResumeSection(aiCore, "skills", jobDescription, userData),
+        generateResumeSection(aiCore, "experience", jobDescription, userData),
+      ]);
 
-    setSummaryData(summary["summary"]);
-    setSkillsData(skills?.["technicalSkills"]);
-    setExperienceData(experience["bulletPoints"]);
-    setIsPdfLoading(false);
+      setSummaryData(summary.summary);
+      setSkillsData(skills.technicalSkills);
+      setExperienceData(experience.bulletPoints);
+      setStep(2);
+    } catch (error) {
+      setStepError(`Resume generation failed: ${getErrorMessage(error)}`);
+    } finally {
+      setIsPdfLoading(false);
+    }
+  };
 
-    setStep(2);
+  const onResetClick = () => {
+    setJobDescription("");
+    setStep(0);
+    setJudgeResponse(undefined);
+    setStepError(null);
+    setSummaryData(ResumeData.summary);
+    setExperienceData(defaultTweakableBullets);
+    setSkillsData(ResumeData.featuredSkills);
   };
 
   return (
@@ -160,7 +136,8 @@ export const NewApp = () => {
         <Button
           className="mb-4 mt-2"
           variant={"destructive"}
-          onClick={() => window.location.reload()}
+          onClick={onResetClick}
+          disabled={isJudgementLoading || isPdfLoading}
         >
           Reset
         </Button>
@@ -181,7 +158,8 @@ export const NewApp = () => {
               <input
                 className="px-2 outline-hidden relative -top-2"
                 id="gemini-key"
-                type="text"
+                type="password"
+                autoComplete="off"
                 value={geminiKey}
                 onChange={(event) => setGeminiKey(event.target.value)}
               />
@@ -246,15 +224,13 @@ export const NewApp = () => {
       {step === 2 && (
         <div className="w-screen h-screen">
           {!isPdfLoading ? (
-            <PDFViewer
-              className={`h-full w-full ${isPdfLoading ? "hidden" : ""}`}
-            >
-              <MyDocument
+            <Suspense fallback={<Loader className="animate-spin" />}>
+              <ResumePreview
                 summaryData={summaryData}
                 mainExperienceData={experienceData}
                 skillsData={skillsData}
               />
-            </PDFViewer>
+            </Suspense>
           ) : (
             <Loader className="animate-spin" />
           )}

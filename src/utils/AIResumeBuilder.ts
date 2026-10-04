@@ -1,14 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import type { UserData } from "../types/input";
-
-export const geminiTest = async (ai: GoogleGenAI) => {
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents:
-      "In a scale of 1 to 10, what is the worth of love? in 30 words or less",
-  });
-  return response;
-};
+import { MODELS } from "./models";
 
 const SUMMARY_SCHEMA = {
   type: "OBJECT",
@@ -42,25 +34,38 @@ const SKILLS_SCHEMA = {
     technicalSkills: { type: "ARRAY", items: { type: "STRING" } },
     // softSkills: { type: "ARRAY", items: { type: "STRING" } },
   },
+  required: ["technicalSkills"],
 };
 
-export type SectionType = "summary" | "experience" | "skills";
+export interface SectionResults {
+  summary: { summary: string };
+  experience: { bulletPoints: string[] };
+  skills: { technicalSkills: string[] };
+}
 
-export const generateResumeSection = async (
+export type SectionType = keyof SectionResults;
+
+const REQUIRED_KEY: Record<SectionType, string> = {
+  summary: "summary",
+  experience: "bulletPoints",
+  skills: "technicalSkills",
+};
+
+export const generateResumeSection = async <T extends SectionType>(
   client: GoogleGenAI,
-  sectionType: SectionType,
+  sectionType: T,
   jobDescription: string,
   userData: UserData,
-) => {
+): Promise<SectionResults[T]> => {
   // A. HYBRID STRATEGY SELECTOR
-  let modelName = "gemini-2.5-flash"; // Default to fast/cheap
+  let modelName: string = MODELS.fast; // Default to fast/cheap
   let temperature = 0.3; // Default to strict
   let targetSchema = null;
   let specificInstructions = "";
 
   switch (sectionType) {
     case "summary":
-      modelName = "gemini-2.5-pro"; // Use PRO for creative writing
+      modelName = MODELS.creative; // Use PRO for creative writing
       temperature = 0.7; // Higher temp for better flair
       targetSchema = SUMMARY_SCHEMA;
       specificInstructions =
@@ -68,21 +73,21 @@ export const generateResumeSection = async (
       break;
 
     case "experience":
-      modelName = "gemini-2.5-flash"; // Recommended for speed + smarts
+      modelName = MODELS.fast; // Recommended for speed + smarts
       temperature = 0.3;
       targetSchema = EXPERIENCE_SCHEMA;
       specificInstructions = `
         1. **Analyze** the <TARGET_JOB_DESCRIPTION> to identify the top 5 critical skills.
-        2. **Synthesize and Rewrite** the candidate's <RAW_WORK_HISTORY> into a single, optimized, rewritted list of ATS friendly bullet points and keywords (aim for 5-7 strong points).
+        2. **Synthesize and Rewrite** the candidate's <RAW_WORK_HISTORY> into a single, optimized, rewritten list of ATS friendly bullet points and keywords (aim for 5-7 strong points).
         3. **Filter & Merge:** - **DISCARD** weak or irrelevant tasks (e.g., "attended meetings").
            - **MERGE** related small tasks into one strong achievement.
            - **RANK** the most impactful points at the top.
         4. **Format:** Output ONLY the final bullet point text. Do not include original tasks or metadata.
-      `;;
+      `;
       break;
 
     case "skills":
-      modelName = "gemini-2.5-flash";
+      modelName = MODELS.fast;
       temperature = 0.1;
       targetSchema = SKILLS_SCHEMA;
       specificInstructions =
@@ -128,10 +133,15 @@ export const generateResumeSection = async (
       contents: prompt,
     });
 
-    // In the new SDK, response.text() often handles the parsing automatically if valid JSON
-    // But we manually parse to be safe and consistent with your frontend needs
     const textResponse = response.text;
-    return textResponse ? JSON.parse(textResponse) : null;
+    if (!textResponse) {
+      throw new Error(`Received empty ${sectionType} response from the model.`);
+    }
+    const parsed = JSON.parse(textResponse);
+    if (parsed?.[REQUIRED_KEY[sectionType]] === undefined) {
+      throw new Error(`Model response for ${sectionType} is missing required data.`);
+    }
+    return parsed;
   } catch (error) {
     console.error("Gemini Generation Error:", error);
     throw error;
