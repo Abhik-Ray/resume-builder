@@ -1,7 +1,8 @@
 import type { ResumeDataType, UserData } from "../types/input";
 
-// Single source of truth for all personal resume content
-export const ResumeData: ResumeDataType = {
+// Default personal resume content. Seeds the browser DB and is restored by
+// "Reset to defaults" in Settings; the app reads the DB copy at runtime.
+export const DEFAULT_RESUME_DATA: ResumeDataType = {
   profile: {
     name: "Abhik Ray",
     contacts: [
@@ -157,20 +158,20 @@ export const ResumeData: ResumeDataType = {
 };
 
 // Bullets of the position the AI rewrites, used as the pre-generation default
-export const defaultTweakableBullets =
-  ResumeData.experience.find((exp) => exp.canTweak)?.bullets ?? [];
+export const getTweakableBullets = (data: ResumeDataType) =>
+  data.experience.find((exp) => exp.canTweak)?.bullets ?? [];
 
 // Candidate data in the shape the AI prompts expect
-export const userData: UserData = {
-  currentRole: ResumeData.currentRole,
-  yearsOfExperience: ResumeData.yearsOfExperience,
-  requireRemote: ResumeData.requireRemote,
-  rawWorkHistory: ResumeData.experience.flatMap((exp) =>
+export const toUserData = (data: ResumeDataType): UserData => ({
+  currentRole: data.currentRole,
+  yearsOfExperience: data.yearsOfExperience,
+  requireRemote: data.requireRemote,
+  rawWorkHistory: data.experience.flatMap((exp) =>
     (exp.projects ?? []).map((project) => ({
       projectName: project.projectName,
       companyName: exp.companyName,
       tasks: project.tasks,
     })),
   ),
-  hardSkills: ResumeData.hardSkills,
-};
+  hardSkills: data.hardSkills,
+});

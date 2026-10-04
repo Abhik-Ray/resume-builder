@@ -1,11 +1,12 @@
 import "./index.css";
 
-import { NewApp } from "./NewApp";
+import { RouterProvider } from "react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { router } from "./router";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <NewApp />
+    <RouterProvider router={router} />
   </StrictMode>,
 );

@@ -27,7 +27,7 @@ export const Gauge: FC<GaugePropsType> = ({ value = 40, size = 250 }) => {
         <path
           d="M 10,50 A 40,40 0 0 1 90,50"
           fill="none"
-          stroke="#e2e8f0" // slate-200
+          className="stroke-muted"
           strokeWidth={strokeWidth}
           strokeLinecap="round"
         />
@@ -36,7 +36,7 @@ export const Gauge: FC<GaugePropsType> = ({ value = 40, size = 250 }) => {
         <path
           d="M 10,50 A 40,40 0 0 1 90,50"
           fill="none"
-          stroke="#3b82f6" // blue-500
+          className="stroke-chart-2"
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeDasharray={circumference}
@@ -49,7 +49,7 @@ export const Gauge: FC<GaugePropsType> = ({ value = 40, size = 250 }) => {
       
       {/* Percentage Label */}
       <div className="absolute bottom-0 text-center">
-        <span className="text-3xl font-bold text-slate-800">{clamped}%</span>
+        <span className="text-3xl font-bold text-foreground">{clamped}%</span>
       </div>
     </div>
   );

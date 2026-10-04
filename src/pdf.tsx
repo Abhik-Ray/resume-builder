@@ -1,9 +1,10 @@
 import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 
-import { ResumeData } from "./data/ResumeData";
 import type { FC } from "react";
+import type { ResumeDataType } from "./types/input";
 
 interface I_PdfProps {
+  resume: ResumeDataType;
   summaryData: string;
   mainExperienceData: string[];
   skillsData: string[];
@@ -94,9 +95,7 @@ const decorateExperience = (experience: string[]) => {
   return experience.map((exp) => "• " + exp).join("\n");
 };
 
-const { profile } = ResumeData;
-
-export const MyDocument: FC<I_PdfProps> = (props) => (
+export const MyDocument: FC<I_PdfProps> = ({ resume: { profile, experience }, ...props }) => (
   <Document
     title={`${profile.name} Resume`}
     author={profile.name}
@@ -123,7 +122,7 @@ export const MyDocument: FC<I_PdfProps> = (props) => (
         </View>
         <View>
           <Text style={styles.heading}>EXPERIENCE</Text>
-          {ResumeData.experience.map((exp, idx) => (
+          {experience.map((exp, idx) => (
             <View style={styles.experience} key={idx}>
               <View style={styles.flexRow}>
                 <Text style={styles.companyDetails}>{exp.companyName}, </Text>

@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { MODELS } from "./models";
+import type { ProviderId } from "./providers";
 
 export const verifyApiKey = async (ai: GoogleGenAI) => {
   try {
@@ -12,5 +13,13 @@ export const verifyApiKey = async (ai: GoogleGenAI) => {
     // A 403 or 401 error means the key is invalid, revoked, or blocked
     console.error("❌ API Key validation failed:", errorMessage);
     return { status: "unhealthy", valid: false, reason: errorMessage };
+  }
+};
+
+// Health-checks a raw key for the given provider
+export const verifyProviderKey = (provider: ProviderId, apiKey: string) => {
+  switch (provider) {
+    case "gemini":
+      return verifyApiKey(new GoogleGenAI({ apiKey }));
   }
 };
