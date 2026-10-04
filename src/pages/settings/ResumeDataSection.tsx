@@ -140,8 +140,8 @@ const ResumeDataForm = ({ data, isCustom }: { data: ResumeDataType; isCustom: bo
           role="status"
           className={
             status.type === "success"
-              ? "rounded-md border border-green-600 bg-green-50 p-2 text-xs text-green-700"
-              : "rounded-md border border-red-600 bg-red-50 p-2 text-xs text-red-600"
+              ? "rounded-md border border-green-600 bg-green-50 p-2 text-xs text-green-700 dark:border-green-500/60 dark:bg-green-950/40 dark:text-green-400"
+              : "rounded-md border border-red-600 bg-red-50 p-2 text-xs text-red-600 dark:border-red-500/60 dark:bg-red-950/40 dark:text-red-400"
           }
         >
           {status.message}

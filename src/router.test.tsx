@@ -43,6 +43,11 @@ describe("routes", () => {
     expect(await screen.findByRole("heading", { name: "Resume data" }, LAZY)).toBeInTheDocument();
   });
 
+  it("shows the appearance page at /settings/appearance", async () => {
+    renderAt("/settings/appearance");
+    expect(await screen.findByRole("heading", { name: "Appearance" }, LAZY)).toBeInTheDocument();
+  });
+
   it("sends unknown settings pages back to the tiles", async () => {
     const router = renderAt("/settings/nope");
     expect(await screen.findByRole("link", { name: /Resume Data/ }, LAZY)).toBeInTheDocument();

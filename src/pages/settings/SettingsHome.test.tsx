@@ -6,8 +6,8 @@ import { SETTINGS_SECTIONS } from "./sections";
 import SettingsHome from "./SettingsHome";
 
 describe("SETTINGS_SECTIONS", () => {
-  it("lists API Keys and Resume Data with unique ids and descriptions", () => {
-    expect(SETTINGS_SECTIONS.map((s) => s.title)).toEqual(["API Keys", "Resume Data"]);
+  it("lists API Keys, Resume Data and Appearance with unique ids and descriptions", () => {
+    expect(SETTINGS_SECTIONS.map((s) => s.title)).toEqual(["API Keys", "Resume Data", "Appearance"]);
     expect(new Set(SETTINGS_SECTIONS.map((s) => s.id)).size).toBe(SETTINGS_SECTIONS.length);
     for (const section of SETTINGS_SECTIONS) expect(section.description).not.toBe("");
   });

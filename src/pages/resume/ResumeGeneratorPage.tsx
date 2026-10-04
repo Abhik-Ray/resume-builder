@@ -211,7 +211,7 @@ const ResumeGenerator = ({ resume, geminiKeys }: ResumeGeneratorProps) => {
       {stepError && (
         <p
           role="alert"
-          className="rounded-md border border-red-600 bg-red-50 p-2 text-xs text-red-600"
+          className="rounded-md border border-red-600 bg-red-50 p-2 text-xs text-red-600 dark:border-red-500/60 dark:bg-red-950/40 dark:text-red-400"
         >
           {stepError}
         </p>
@@ -220,7 +220,7 @@ const ResumeGenerator = ({ resume, geminiKeys }: ResumeGeneratorProps) => {
       {step === 0 && (
         <div className="flex flex-col gap-4 rounded-lg border p-4">
           {!activeKey ? (
-            <p className="flex items-center gap-2 rounded-md border border-amber-500 bg-amber-50 p-2 text-xs text-amber-800">
+            <p className="flex items-center gap-2 rounded-md border border-amber-500 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-500/60 dark:bg-amber-950/40 dark:text-amber-300">
               <KeyRound className="size-4 shrink-0" />
               <span>
                 No Gemini key saved.{" "}

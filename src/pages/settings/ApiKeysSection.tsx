@@ -87,7 +87,7 @@ const ApiKeysSection = () => {
       </div>
 
       {actionError && (
-        <p className="rounded-md border border-red-600 bg-red-50 p-2 text-xs text-red-600">
+        <p className="rounded-md border border-red-600 bg-red-50 p-2 text-xs text-red-600 dark:border-red-500/60 dark:bg-red-950/40 dark:text-red-400">
           {actionError}
         </p>
       )}
@@ -327,8 +327,8 @@ const ApiKeyForm = ({ initial, otherLabels, onDone }: ApiKeyFormProps) => {
           <div
             className={
               verifyResult.valid
-                ? "flex items-start gap-2 rounded-md border border-green-600 bg-green-50 p-2 text-xs text-green-700 animate-in fade-in"
-                : "flex items-start gap-2 rounded-md border border-red-600 bg-red-50 p-2 text-xs text-red-600 animate-in fade-in"
+                ? "flex items-start gap-2 rounded-md border border-green-600 bg-green-50 p-2 text-xs text-green-700 dark:border-green-500/60 dark:bg-green-950/40 dark:text-green-400 animate-in fade-in"
+                : "flex items-start gap-2 rounded-md border border-red-600 bg-red-50 p-2 text-xs text-red-600 dark:border-red-500/60 dark:bg-red-950/40 dark:text-red-400 animate-in fade-in"
             }
           >
             {verifyResult.valid ? (

@@ -9,6 +9,7 @@ const SettingsLayout = lazy(() => import("./pages/settings/SettingsLayout"));
 const SettingsHome = lazy(() => import("./pages/settings/SettingsHome"));
 const ApiKeysSection = lazy(() => import("./pages/settings/ApiKeysSection"));
 const ResumeDataSection = lazy(() => import("./pages/settings/ResumeDataSection"));
+const AppearanceSection = lazy(() => import("./pages/settings/AppearanceSection"));
 
 // Exported separately so tests can mount them in a memory router
 export const routes: RouteObject[] = [
@@ -26,6 +27,7 @@ export const routes: RouteObject[] = [
           { index: true, element: <SettingsHome /> },
           { path: "api-keys", element: <ApiKeysSection /> },
           { path: "resume-data", element: <ResumeDataSection /> },
+          { path: "appearance", element: <AppearanceSection /> },
           { path: "*", element: <Navigate to="/settings" replace /> },
         ],
       },
