@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { addApiKey } from "../../db/apiKeys";
 import { db } from "../../db/db";
-import { GEMINI_KEY, resetDb } from "../../test/utils";
+import { GEMINI_KEY, OPENAI_KEY, resetDb } from "../../test/utils";
 import ApiKeysSection from "./ApiKeysSection";
 
 vi.mock("../../utils/AIHealthCheck", () => ({ verifyProviderKey: vi.fn() }));
@@ -79,6 +79,48 @@ describe("ApiKeysSection", () => {
       expect(await db.apiKeys.toArray()).toEqual([
         expect.objectContaining({ label: "Personal", key: GEMINI_KEY, isDefault: true }),
       ]);
+    });
+
+    it("adds an OpenAI key, verified with OpenAI", async () => {
+      verify.mockResolvedValue(PASS);
+      const user = await setup();
+      await openAddForm(user);
+      await user.selectOptions(screen.getByLabelText("Provider"), "openai");
+      await user.type(screen.getByLabelText("API key"), OPENAI_KEY);
+      await user.click(screen.getByRole("button", { name: "Add key" }));
+
+      expect(verify).toHaveBeenCalledWith("openai", OPENAI_KEY);
+      await waitFor(() => expect(keyRows()).toHaveLength(1));
+      expect(keyRows()[0]).toHaveTextContent("OpenAI");
+    });
+
+    it("shows the provider's note and where to get a key", async () => {
+      const user = await setup();
+      await openAddForm(user);
+      expect(screen.getByRole("link", { name: "Get your Gemini key" })).toHaveAttribute(
+        "href",
+        "https://aistudio.google.com/apikey",
+      );
+
+      await user.selectOptions(screen.getByLabelText("Provider"), "anthropic");
+      expect(screen.getByText(/A Claude subscription doesn't include API access/)).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Get your Anthropic key" })).toHaveAttribute(
+        "href",
+        "https://console.anthropic.com/settings/keys",
+      );
+    });
+
+    it("follows the provider in the generated label until it is edited", async () => {
+      const user = await setup();
+      await openAddForm(user);
+      const label = screen.getByLabelText("Label") as HTMLInputElement;
+      await user.selectOptions(screen.getByLabelText("Provider"), "openai");
+      expect(label.value).toMatch(/^openai-[0-9a-f]{5}$/);
+
+      await user.clear(label);
+      await user.type(label, "Mine");
+      await user.selectOptions(screen.getByLabelText("Provider"), "anthropic");
+      expect(label).toHaveValue("Mine");
     });
 
     it("shows an animated status and locks the form while verifying", async () => {

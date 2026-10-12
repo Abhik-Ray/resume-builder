@@ -14,11 +14,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.78",
+    "@ai-sdk/google": "^4.0.93",
+    "@ai-sdk/openai": "^4.0.91",
     "@fontsource-variable/jetbrains-mono": "^5.2.8",
-    "@google/genai": "^1.38.0",
     "@hookform/resolvers": "^5.9.1",
     "@react-pdf/renderer": "^4.3.2",
     "@tailwindcss/vite": "^4.1.18",
+    "ai": "^7.0.137",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dexie": "^4.4.6",

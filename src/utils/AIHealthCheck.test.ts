@@ -1,56 +1,80 @@
-import type { GoogleGenAI } from "@google/genai";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { verifyProviderKey } from "./AIHealthCheck";
 import { MODELS } from "./models";
 
-const { modelsGet } = vi.hoisted(() => ({ modelsGet: vi.fn() }));
+const fetchMock = vi.fn<typeof fetch>();
 
-vi.mock("@google/genai", () => ({
-  GoogleGenAI: vi.fn(function (this: { models: unknown }) {
-    this.models = { get: modelsGet };
-  }),
-}));
+const jsonResponse = (status: number, body: unknown) =>
+  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
-import { GoogleGenAI as MockGoogleGenAI } from "@google/genai";
-import { verifyApiKey, verifyProviderKey } from "./AIHealthCheck";
+const lastCall = () => {
+  const [url, init] = fetchMock.mock.calls.at(-1)!;
+  return { url: String(url), headers: init?.headers as Record<string, string> };
+};
 
-const fakeClient = (get: () => Promise<unknown>) =>
-  ({ models: { get } }) as unknown as GoogleGenAI;
-
-describe("verifyApiKey", () => {
+describe("verifyProviderKey", () => {
   beforeEach(() => {
     vi.spyOn(console, "error").mockImplementation(() => {});
+    fetchMock.mockReset().mockResolvedValue(jsonResponse(200, {}));
+    vi.stubGlobal("fetch", fetchMock);
   });
 
-  it("reports a valid key when model metadata can be fetched", async () => {
-    const get = vi.fn().mockResolvedValue({});
-    await expect(verifyApiKey(fakeClient(get))).resolves.toEqual({
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it.each([
+    [
+      "gemini",
+      `https://generativelanguage.googleapis.com/v1beta/models/${MODELS.gemini.fast}`,
+      { "x-goog-api-key": "my-key" },
+    ],
+    ["openai", "https://api.openai.com/v1/models", { Authorization: "Bearer my-key" }],
+    [
+      "anthropic",
+      "https://api.anthropic.com/v1/models",
+      {
+        "x-api-key": "my-key",
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+    ],
+  ] as const)("checks a %s key against its models endpoint", async (provider, url, headers) => {
+    await expect(verifyProviderKey(provider, "my-key")).resolves.toEqual({
       status: "healthy",
       valid: true,
     });
-    expect(get).toHaveBeenCalledWith({ model: MODELS.fast });
+    const call = lastCall();
+    expect(call.url).toBe(url);
+    expect(call.url).not.toContain("my-key");
+    expect(call.headers).toEqual(headers);
   });
 
-  it("reports an invalid key with the reason when the call fails", async () => {
-    const get = vi.fn().mockRejectedValue(new Error("API key not valid"));
-    await expect(verifyApiKey(fakeClient(get))).resolves.toEqual({
+  it("reports a rejected key with the provider's message", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(401, { error: { message: "Invalid API key" } }));
+    await expect(verifyProviderKey("openai", "bad")).resolves.toEqual({
       status: "unhealthy",
       valid: false,
-      reason: "API key not valid",
+      reason: "401: Invalid API key",
     });
   });
 
-  it("handles non-Error rejections", async () => {
-    const get = vi.fn().mockRejectedValue("offline");
-    const result = await verifyApiKey(fakeClient(get));
-    expect(result).toMatchObject({ valid: false, reason: "offline" });
+  it("falls back to the status when the error body isn't JSON", async () => {
+    fetchMock.mockResolvedValue(new Response("nope", { status: 403, statusText: "Forbidden" }));
+    const result = await verifyProviderKey("anthropic", "bad");
+    expect(result).toMatchObject({ valid: false, reason: "403 Forbidden" });
   });
-});
 
-describe("verifyProviderKey", () => {
-  it("builds a Gemini client with the key and checks it", async () => {
-    modelsGet.mockResolvedValue({});
-    const result = await verifyProviderKey("gemini", "my-key");
-    expect(MockGoogleGenAI).toHaveBeenCalledWith({ apiKey: "my-key" });
-    expect(result).toMatchObject({ valid: true });
+  it("reports network failures as invalid", async () => {
+    fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
+    const result = await verifyProviderKey("gemini", "k");
+    expect(result).toMatchObject({ valid: false, reason: "Failed to fetch" });
+  });
+
+  it("never logs the key", async () => {
+    const log = vi.mocked(console.error);
+    fetchMock.mockResolvedValue(jsonResponse(401, { error: { message: "bad" } }));
+    await verifyProviderKey("openai", "secret-key-123");
+    expect(JSON.stringify(log.mock.calls)).not.toContain("secret-key-123");
   });
 });

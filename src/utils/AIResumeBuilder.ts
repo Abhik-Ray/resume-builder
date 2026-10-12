@@ -1,81 +1,53 @@
-import { GoogleGenAI } from "@google/genai";
+import { generateText, Output } from "ai";
+import { z } from "zod";
 import type { UserData } from "../types/input";
-import { MODELS } from "./models";
+import { getModel, temperatureFor, type AIKey } from "./aiModel";
+import type { ModelChoice, ModelTier } from "./models";
 
-const SUMMARY_SCHEMA = {
-  type: "OBJECT",
-  properties: {
-    summary: {
-      type: "STRING",
-      description: "A professional, persuasive summary of the candidate.",
-    },
-  },
-  required: ["summary"],
+// Every field is required; the SDK validates responses against these
+const SECTION_SCHEMAS = {
+  summary: z.object({
+    summary: z.string().describe("A professional, persuasive summary of the candidate."),
+  }),
+  experience: z.object({
+    bulletPoints: z
+      .array(z.string().describe("The final, polished bullet point text."))
+      .describe("A prioritized list of high-impact resume bullet points."),
+  }),
+  skills: z.object({
+    technicalSkills: z.array(z.string()),
+  }),
 };
 
-const EXPERIENCE_SCHEMA = {
-  type: "OBJECT",
-  properties: {
-    bulletPoints: {
-      type: "ARRAY",
-      description: "A prioritized list of high-impact resume bullet points.",
-      items: {
-        type: "STRING",
-        description: "The final, polished bullet point text.",
-      },
-    },
-  },
-  required: ["bulletPoints"],
+export type SectionResults = {
+  [K in keyof typeof SECTION_SCHEMAS]: z.infer<(typeof SECTION_SCHEMAS)[K]>;
 };
-
-const SKILLS_SCHEMA = {
-  type: "OBJECT",
-  properties: {
-    technicalSkills: { type: "ARRAY", items: { type: "STRING" } },
-    // softSkills: { type: "ARRAY", items: { type: "STRING" } },
-  },
-  required: ["technicalSkills"],
-};
-
-export interface SectionResults {
-  summary: { summary: string };
-  experience: { bulletPoints: string[] };
-  skills: { technicalSkills: string[] };
-}
 
 export type SectionType = keyof SectionResults;
 
-const REQUIRED_KEY: Record<SectionType, string> = {
-  summary: "summary",
-  experience: "bulletPoints",
-  skills: "technicalSkills",
-};
-
 export const generateResumeSection = async <T extends SectionType>(
-  client: GoogleGenAI,
+  aiKey: AIKey,
+  model: ModelChoice,
   sectionType: T,
   jobDescription: string,
   userData: UserData,
 ): Promise<SectionResults[T]> => {
-  // A. HYBRID STRATEGY SELECTOR
-  let modelName: string = MODELS.fast; // Default to fast/cheap
+  // A. HYBRID STRATEGY SELECTOR (tiers apply when the model is "auto")
+  let tier: ModelTier = "fast"; // Default to fast/cheap
   let temperature = 0.3; // Default to strict
-  let targetSchema = null;
   let specificInstructions = "";
 
   switch (sectionType) {
     case "summary":
-      modelName = MODELS.creative; // Use PRO for creative writing
+      tier = "creative"; // Use the stronger model for creative writing
       temperature = 0.7; // Higher temp for better flair
-      targetSchema = SUMMARY_SCHEMA;
       specificInstructions =
         "Focus on narrative flow, career trajectory, and 'soft' leadership qualities. Make it sound human, not robotic. Keep it to 30 ATS friendly words or less";
       break;
 
     case "experience":
-      modelName = MODELS.fast; // Recommended for speed + smarts
+      tier = "fast"; // Recommended for speed + smarts
       temperature = 0.3;
-      targetSchema = EXPERIENCE_SCHEMA;
       specificInstructions = `
         1. **Analyze** the <TARGET_JOB_DESCRIPTION> to identify the top 5 critical skills.
         2. **Synthesize and Rewrite** the candidate's <RAW_WORK_HISTORY> into a single, optimized, rewritten list of ATS friendly bullet points and keywords (aim for 5-7 strong points).
@@ -87,9 +59,8 @@ export const generateResumeSection = async <T extends SectionType>(
       break;
 
     case "skills":
-      modelName = MODELS.fast;
+      tier = "fast";
       temperature = 0.1;
-      targetSchema = SKILLS_SCHEMA;
       specificInstructions =
         "Extract hard technical skills from the user history that match the job description. Rewrite the wording for ATS friendliness as necessary. Do not add verbose skills, generalize them (eg: If the Job requies Google Analytics Tag Manager GA4, output 'Google Analytics')";
       break;
@@ -121,29 +92,20 @@ export const generateResumeSection = async <T extends SectionType>(
     4. **Output:** Respond ONLY with valid JSON matching the enforced schema.
   `;
 
-  // C. EXECUTE (Updated for @google/genai syntax)
+  // C. EXECUTE (throws if the response doesn't match the section's schema)
   try {
-    const response = await client.models.generateContent({
-      model: modelName,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: targetSchema, // Cast ensures compatibility with strict types
-        temperature: temperature,
-      },
-      contents: prompt,
+    const { output } = await generateText({
+      model: getModel(aiKey, model, tier),
+      output: Output.object({
+        // TS can't narrow the schema union by the generic section type
+        schema: SECTION_SCHEMAS[sectionType] as unknown as z.ZodType<SectionResults[T]>,
+      }),
+      temperature: temperatureFor(aiKey.provider, temperature),
+      prompt,
     });
-
-    const textResponse = response.text;
-    if (!textResponse) {
-      throw new Error(`Received empty ${sectionType} response from the model.`);
-    }
-    const parsed = JSON.parse(textResponse);
-    if (parsed?.[REQUIRED_KEY[sectionType]] === undefined) {
-      throw new Error(`Model response for ${sectionType} is missing required data.`);
-    }
-    return parsed;
+    return output;
   } catch (error) {
-    console.error("Gemini Generation Error:", error);
+    console.error(`Resume ${sectionType} generation error:`, error);
     throw error;
   }
 };

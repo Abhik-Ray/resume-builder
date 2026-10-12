@@ -4,9 +4,9 @@ Guidance for AI coding agents working in this repository.
 
 ## Project
 
-A client-only React app that uses Google Gemini to (1) judge a job description against the owner's preferences and (2) rewrite resume sections for that job, then renders the resume as a PDF. There is no backend: the user saves their own API keys in Settings, stored in the browser's IndexedDB. The app is a dashboard (Home, Resume, Settings); the job review and PDF flow is the Resume module. Deployed to GitHub Pages under `/resume-builder/`.
+A client-only React app that uses an LLM (Gemini, OpenAI or Anthropic, picked per run) to (1) judge a job description against the owner's preferences and (2) rewrite resume sections for that job, then renders the resume as a PDF. There is no backend: the user saves their own API keys in Settings, stored in the browser's IndexedDB, and the browser calls the provider directly. The app is a dashboard (Home, Resume, Settings); the job review and PDF flow is the Resume module. Deployed to GitHub Pages under `/resume-builder/`.
 
-Stack: React 19 (with React Compiler), TypeScript (strict), Vite 7, Tailwind CSS v4, shadcn/ui-style components, `@google/genai`, `@react-pdf/renderer`, React Router v7 (hash router), Dexie (IndexedDB), react-hook-form + zod. Package manager: **pnpm**.
+Stack: React 19 (with React Compiler), TypeScript (strict), Vite 7, Tailwind CSS v4, shadcn/ui-style components, Vercel AI SDK v7 (`ai`, `@ai-sdk/google`, `@ai-sdk/openai`, `@ai-sdk/anthropic`), `@react-pdf/renderer`, React Router v7 (hash router), Dexie (IndexedDB), react-hook-form + zod. Package manager: **pnpm**.
 
 ## Commands
 
@@ -29,7 +29,7 @@ Before finishing a change, run `pnpm lint`, `pnpm test` and `pnpm build`; all mu
 Vitest + React Testing Library in jsdom (config in `vite.config.ts`). Tests sit next to their file as `*.test.ts(x)`.
 - `src/test/setup.ts` loads `fake-indexeddb` (real Dexie in tests) and jest-dom matchers.
 - `src/test/utils.tsx`: `resetDb()` for a clean database per test, and `renderWithRouter()` for anything using router hooks (`useBlocker` needs a data router).
-- Mock AI calls at the module boundary (`vi.mock("../../utils/AIHealthCheck")`, `AIResumeJudge`, `AIResumeBuilder`); never hit Gemini.
+- Mock AI calls at the module boundary; never hit a provider. Pages mock `utils/AIHealthCheck`, `AIResumeJudge` and `AIResumeBuilder`. Those modules' own tests mock `ai` (`generateText`, `Output`) and `./aiModel`'s `getModel`; `AIHealthCheck.test.ts` stubs `fetch`. Fake keys live in `src/test/utils.tsx`.
 - Mock `@react-pdf/renderer` with `vi.mock("@react-pdf/renderer", () => import("<rel>/test/reactPdfMock"))` so PDF layouts render as DOM.
 - `router.tsx` exports `routes` so route tests can use `createMemoryRouter(routes)`.
 
@@ -42,6 +42,7 @@ src/
   layouts/DashboardLayout.tsx   Sidebar nav + <Outlet/>
   pages/HomePage.tsx    Dashboard home (placeholder for statistics)
   pages/resume/ResumeGeneratorPage.tsx  The 3-step flow (JD → job review → PDF) and its state
+  pages/resume/aiChoice.ts   Remembered key/model choice and default key selection
   pages/resume/JudgeResponse.tsx, Gauge.tsx   Job review view and match-score gauge
   pages/settings/SettingsLayout.tsx     Container + back link for section pages
   pages/settings/SettingsHome.tsx       Tile grid linking to each settings section
@@ -58,12 +59,14 @@ src/
   pdf.tsx               The resume PDF layout (@react-pdf/renderer); takes the resume as a prop
   data/ResumeData.ts    DEFAULT_RESUME_DATA (seed) + toUserData/getTweakableBullets helpers
   types/input.ts        Data types (ResumeDataType, Position, UserData, ...)
-  utils/models.ts       Gemini model ids — the only place to set them
-  utils/providers.ts    AI providers for keys (only Gemini)
-  utils/AIResumeJudge.ts    Job-judging prompt, schema and JudgeResponseType
+  utils/models.ts       Model ids per provider (fast/creative + picker options) — the only place to set them
+  utils/providers.ts    AI providers for keys (Gemini, OpenAI, Anthropic), key links and notes
+  utils/aiModel.ts      getModel(): builds the AI SDK model for a key — the only importer of @ai-sdk/*
+  utils/AIResumeJudge.ts    Job-judging prompt, zod schema and JudgeResponseType
   utils/AIResumeBuilder.ts  Per-section resume generation (summary/experience/skills)
-  utils/AIHealthCheck.ts    API key validation
+  utils/AIHealthCheck.ts    API key validation (fetch to each provider's models endpoint)
   lib/utils.ts          `cn()` class-name helper
+  lib/storage.ts        try/catch localStorage helpers for small preferences
 ```
 
 ## Routing
@@ -74,9 +77,9 @@ Hash URLs (`#/`, `#/resume`, `#/settings`, `#/settings/api-keys`, `#/settings/re
 
 - **Personal data comes from the DB, not imports.** `DEFAULT_RESUME_DATA` in `src/data/ResumeData.ts` is only the seed; components read the live copy with `useResumeData()` and pass it down (to `pdf.tsx`, `toUserData()`, `judgeJobPosting`). Don't hardcode names, contacts or experience in components or prompts. When changing `ResumeDataType`, update `resumeDataSchema.ts` and the settings form too (the schema `satisfies z.ZodType<ResumeDataType>`).
 - **Forms use react-hook-form + zod** via `zodResolver`, with the fields in `components/form/`. String arrays use `StringListField` (`useFieldArray` only handles arrays of objects).
-- **New AI providers** go in `PROVIDERS` in `src/utils/providers.ts`, with a health check in `verifyProviderKey` (`AIHealthCheck.ts`). Keys are verified against the provider before they are saved, not by format. Keys are read with `useProviderKeys(provider)`.
-- **Model ids come from `MODELS` in `src/utils/models.ts`.** Don't write model strings inline.
-- **AI calls use structured output.** Each call passes a `responseSchema` with `required` fields, and the parsed result is checked before use. When adding a field, update the schema, the TypeScript type (`SectionResults` or `JudgeResponseType`) and the consuming UI together.
+- **New AI providers** need four entries: `PROVIDERS` (`utils/providers.ts`), `MODELS` (`utils/models.ts`), a case in `getModel` (`utils/aiModel.ts`, with its `@ai-sdk/*` package) and a health check in `verifyProviderKey` (`AIHealthCheck.ts`). The provider must accept calls from a browser (CORS). Keys are verified against the provider before they are saved, not by format.
+- **Model ids come from `MODELS` in `src/utils/models.ts`.** Don't write model strings inline. AI functions take a `ModelChoice`: `"auto"` maps each task to the provider's `fast` or `creative` model; anything else is a model id from the picker.
+- **AI calls use structured output.** Each call uses `generateText` with `Output.object({ schema })` and a zod schema whose fields are all required; the SDK validates the response and throws if it doesn't match. Avoid zod constraints providers may reject in strict schemas (`min`/`max`, regex); describe them instead. When adding a field, update the schema (the types are inferred from it) and the consuming UI together. Pass `temperatureFor(provider, t)`, not a raw temperature.
 - **Every AI call in the UI goes through try/catch/finally** that sets an error state and clears the loading flag. Never leave a spinner that can get stuck.
 - **Keep `@react-pdf/renderer` out of the main bundle.** Only `pdf.tsx` and `ResumePreview.tsx` may import it, and `ResumePreview` must stay behind `React.lazy`.
 - **Use relative imports.** The `@/` alias isn't wired up (see Gotchas).
@@ -85,7 +88,9 @@ Hash URLs (`#/`, `#/resume`, `#/settings`, `#/settings/api-keys`, `#/settings/re
 
 ## Gotchas
 
-- **Never log or commit API keys.** They are user-supplied at runtime and stored unencrypted in IndexedDB. A legacy `localStorage.geminiKey` is moved into the DB when the database is first created. Don't reintroduce `VITE_*` env vars for them: Vite inlines them into the public bundle.
+- **Never log or commit API keys.** They are user-supplied at runtime and stored unencrypted in IndexedDB. A legacy `localStorage.geminiKey` is moved into the DB when the database is first created. Don't reintroduce `VITE_*` env vars for them: Vite inlines them into the public bundle. Keys stay in the browser by design, even if a backend is added: never send them to our own servers or store them in a remote database. Send keys in headers, never in URLs.
+- **Provider quirks.** Anthropic only accepts browser calls with the `anthropic-dangerous-direct-browser-access` header (`ANTHROPIC_BROWSER_HEADER` in `providers.ts`). OpenAI's current models are reasoning models that reject `temperature`, so `temperatureFor` drops it for OpenAI.
+- **The AI SDK is large (~180 kB gzipped).** Only `utils/aiModel.ts` imports `@ai-sdk/*`, so the SDK ships only with the Resume page. Don't import `aiModel` from Settings or shared modules.
 - **`@/` path alias doesn't work.** In `tsconfig.app.json`, `paths` sits outside `compilerOptions` and Vite has no `resolve.alias`. Files added with the shadcn CLI import from `@/...` and must be rewritten to relative paths (or the alias fixed in both places).
 - **`components.json` still says `iconLibrary: "phosphor"`,** but `@phosphor-icons/react` was removed. Components added with the shadcn CLI may import Phosphor; switch them to `lucide-react`.
 - **`vite.config.ts` uses `base: '/resume-builder/'`.** Asset paths must work under that prefix.
