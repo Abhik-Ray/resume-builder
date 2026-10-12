@@ -1,7 +1,24 @@
-import type { GoogleGenAI } from "@google/genai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { judgeJobPosting, type JobPreferences, type JudgeResponseType } from "./AIResumeJudge";
-import { MODELS } from "./models";
+
+vi.mock("ai", () => ({
+  generateText: vi.fn(),
+  Output: { object: vi.fn((options: object) => ({ type: "object", ...options })) },
+}));
+vi.mock("./aiModel", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./aiModel")>()),
+  getModel: vi.fn((key: unknown, choice: unknown, tier: unknown) => ({ key, choice, tier })),
+}));
+
+import { generateText } from "ai";
+import {
+  judgeJobPosting,
+  JudgeResponseSchema,
+  type JobPreferences,
+  type JudgeResponseType,
+} from "./AIResumeJudge";
+import type { AIKey } from "./aiModel";
+
+const generate = vi.mocked(generateText);
 
 const preferences: JobPreferences = {
   desiredRoles: ["Frontend Developer"],
@@ -21,38 +38,42 @@ const judgement: JudgeResponseType = {
   verdict: "Apply Immediately",
 };
 
-const clientReturning = (text: string | undefined) => {
-  const generateContent = vi.fn().mockResolvedValue({ text });
-  return { client: { models: { generateContent } } as unknown as GoogleGenAI, generateContent };
-};
+const GEMINI: AIKey = { provider: "gemini", key: "gemini-key" };
+
+const lastRequest = () => generate.mock.calls.at(-1)![0] as unknown as Record<string, unknown>;
 
 describe("judgeJobPosting", () => {
   beforeEach(() => {
     vi.spyOn(console, "error").mockImplementation(() => {});
+    generate.mockReset().mockResolvedValue({ output: judgement } as never);
   });
 
-  it("returns the parsed judgement", async () => {
-    const { client } = clientReturning(JSON.stringify(judgement));
-    await expect(judgeJobPosting(client, "JD", preferences)).resolves.toEqual(judgement);
+  it("returns the structured judgement", async () => {
+    await expect(judgeJobPosting(GEMINI, "auto", "JD", preferences)).resolves.toEqual(judgement);
   });
 
-  it("asks the fast model for structured JSON with every field required", async () => {
-    const { client, generateContent } = clientReturning(JSON.stringify(judgement));
-    await judgeJobPosting(client, "JD", preferences);
+  it("uses the fast tier, the judgement schema and a low temperature", async () => {
+    await judgeJobPosting(GEMINI, "auto", "JD", preferences);
+    expect(lastRequest()).toMatchObject({
+      model: { key: GEMINI, choice: "auto", tier: "fast" },
+      output: { type: "object", schema: JudgeResponseSchema },
+      temperature: 0.2,
+    });
+  });
 
-    const request = generateContent.mock.calls[0][0];
-    expect(request.model).toBe(MODELS.fast);
-    expect(request.config.responseMimeType).toBe("application/json");
-    expect(request.config.responseSchema.required).toEqual(
-      expect.arrayContaining(Object.keys(judgement)),
-    );
+  it("passes a chosen model through", async () => {
+    await judgeJobPosting(GEMINI, "gemini-2.5-pro", "JD", preferences);
+    expect(lastRequest().model).toMatchObject({ choice: "gemini-2.5-pro" });
+  });
+
+  it("leaves temperature out for OpenAI", async () => {
+    await judgeJobPosting({ provider: "openai", key: "k" }, "auto", "JD", preferences);
+    expect(lastRequest().temperature).toBeUndefined();
   });
 
   it("puts the job description and preferences inside their tags", async () => {
-    const { client, generateContent } = clientReturning(JSON.stringify(judgement));
-    await judgeJobPosting(client, "Senior React role, fully remote", preferences);
-
-    const prompt: string = generateContent.mock.calls[0][0].contents;
+    await judgeJobPosting(GEMINI, "auto", "Senior React role, fully remote", preferences);
+    const prompt = lastRequest().prompt as string;
     expect(prompt).toMatch(
       /<JOB_DESCRIPTION>\s*Senior React role, fully remote\s*<\/JOB_DESCRIPTION>/,
     );
@@ -60,15 +81,24 @@ describe("judgeJobPosting", () => {
     expect(JSON.parse(prefs ?? "")).toEqual(preferences);
   });
 
-  it("throws on an empty model response", async () => {
-    const { client } = clientReturning(undefined);
-    await expect(judgeJobPosting(client, "JD", preferences)).rejects.toThrow(/empty response/);
+  it("rethrows API and validation errors", async () => {
+    generate.mockRejectedValue(new Error("quota"));
+    await expect(judgeJobPosting(GEMINI, "auto", "JD", preferences)).rejects.toThrow("quota");
+  });
+});
+
+describe("JudgeResponseSchema", () => {
+  it("accepts a full judgement", () => {
+    expect(JudgeResponseSchema.safeParse(judgement).success).toBe(true);
   });
 
-  it("rethrows API errors", async () => {
-    const client = {
-      models: { generateContent: vi.fn().mockRejectedValue(new Error("quota")) },
-    } as unknown as GoogleGenAI;
-    await expect(judgeJobPosting(client, "JD", preferences)).rejects.toThrow("quota");
+  it("requires every field", () => {
+    const partial: Partial<JudgeResponseType> = { ...judgement };
+    delete partial.verdict;
+    expect(JudgeResponseSchema.safeParse(partial).success).toBe(false);
+  });
+
+  it("only allows the listed remote levels", () => {
+    expect(JudgeResponseSchema.safeParse({ ...judgement, isRemote: "Mars" }).success).toBe(false);
   });
 });

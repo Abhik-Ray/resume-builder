@@ -1,19 +1,28 @@
-import { GoogleGenAI } from "@google/genai";
 import { ArrowLeft, Check, KeyRound, Loader2, RotateCcw, Sparkles } from "lucide-react";
 import { judgeJobPosting, type JudgeResponseType } from "../../utils/AIResumeJudge";
 import { lazy, Suspense, useState } from "react";
 import { Link } from "react-router";
-import { verifyApiKey } from "../../utils/AIHealthCheck";
+import { verifyProviderKey } from "../../utils/AIHealthCheck";
 import { JudgeResponse } from "./JudgeResponse";
 import { Button } from "../../components/ui/button";
 import { SelectField, TextAreaField } from "../../components/form/fields";
 import { generateResumeSection } from "../../utils/AIResumeBuilder";
 import { getTweakableBullets, toUserData } from "../../data/ResumeData";
 import { useResumeData } from "../../db/resumeData";
-import { useProviderKeys } from "../../db/apiKeys";
+import { useApiKeys } from "../../db/apiKeys";
 import type { ApiKeyRecord } from "../../db/db";
 import type { ResumeDataType } from "../../types/input";
 import { cn } from "../../lib/utils";
+import { writeStored } from "../../lib/storage";
+import { MODELS, type ModelChoice } from "../../utils/models";
+import { getProvider } from "../../utils/providers";
+import {
+  KEY_CHOICE_STORAGE,
+  modelChoiceStorage,
+  pickKey,
+  readKeyChoice,
+  readModelChoices,
+} from "./aiChoice";
 
 // The PDF renderer is large, so load it only when the resume is generated
 const loadResumePreview = () => import("../../ResumePreview");
@@ -32,16 +41,12 @@ const Spinner = () => (
 
 const ResumeGeneratorPage = () => {
   const resume = useResumeData();
-  const geminiKeys = useProviderKeys("gemini");
+  const keys = useApiKeys();
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 p-4">
       <h1 className="text-lg font-semibold">Resume</h1>
-      {!resume || !geminiKeys ? (
-        <Spinner />
-      ) : (
-        <ResumeGenerator resume={resume.data} geminiKeys={geminiKeys} />
-      )}
+      {!resume || !keys ? <Spinner /> : <ResumeGenerator resume={resume.data} keys={keys} />}
     </div>
   );
 };
@@ -77,18 +82,55 @@ const StepTabs = ({ current }: { current: number }) => (
   </ol>
 );
 
-interface ResumeGeneratorProps {
-  resume: ResumeDataType;
-  geminiKeys: ApiKeyRecord[];
+interface AIPickerProps {
+  keys: ApiKeyRecord[];
+  activeKey: ApiKeyRecord;
+  model: ModelChoice;
+  onKeyChange: (id: number) => void;
+  onModelChange: (model: ModelChoice) => void;
+  disabled: boolean;
 }
 
-const ResumeGenerator = ({ resume, geminiKeys }: ResumeGeneratorProps) => {
-  const [selectedKeyId, setSelectedKeyId] = useState<number | null>(null);
+// Key and model dropdowns; the model list follows the key's provider
+const AIPicker = ({ keys, activeKey, model, onKeyChange, onModelChange, disabled }: AIPickerProps) => (
+  <div className="grid gap-4 sm:grid-cols-2">
+    <SelectField
+      label="AI key"
+      options={keys.map((k) => ({
+        value: String(k.id),
+        label: `${k.label} · ${getProvider(k.provider).label}`,
+      }))}
+      value={String(activeKey.id)}
+      onChange={(event) => onKeyChange(Number(event.target.value))}
+      disabled={disabled}
+    />
+    <SelectField
+      label="Model"
+      options={[
+        { value: "auto", label: "Auto (fast for analysis, stronger for the summary)" },
+        ...MODELS[activeKey.provider].options.map((m) => ({ value: m.id, label: m.label })),
+      ]}
+      value={model}
+      onChange={(event) => onModelChange(event.target.value)}
+      disabled={disabled}
+    />
+  </div>
+);
+
+interface ResumeGeneratorProps {
+  resume: ResumeDataType;
+  keys: ApiKeyRecord[];
+}
+
+const ResumeGenerator = ({ resume, keys }: ResumeGeneratorProps) => {
+  const [selectedKeyId, setSelectedKeyId] = useState(readKeyChoice);
+  const [modelChoices, setModelChoices] = useState(readModelChoices);
   const [jobDescription, setJobDescription] = useState("");
   const [step, setStep] = useState<number>(0);
   const [judgeResponse, setJudgeResponse] = useState<JudgeResponseType>();
   const [stepError, setStepError] = useState<string | null>(null);
-  const [aiCore, setAICore] = useState<GoogleGenAI | null>(null);
+  // The key that last passed the health check, so it isn't re-checked on every call
+  const [verifiedKey, setVerifiedKey] = useState<Pick<ApiKeyRecord, "id" | "key"> | null>(null);
   const [isJudgementLoading, setIsJudgementLoading] = useState<boolean>(false);
   const [isPdfLoading, setIsPdfLoading] = useState<boolean>(false);
   const [summaryData, setSummaryData] = useState(resume.summary);
@@ -97,16 +139,53 @@ const ResumeGenerator = ({ resume, geminiKeys }: ResumeGeneratorProps) => {
   );
   const [skillsData, setSkillsData] = useState(resume.featuredSkills);
 
-  const activeKey =
-    geminiKeys.find((k) => k.id === selectedKeyId) ??
-    geminiKeys.find((k) => k.isDefault) ??
-    geminiKeys[0];
+  const activeKey = pickKey(keys, selectedKeyId);
+  const storedModel = activeKey ? modelChoices[activeKey.provider] : "auto";
+  // A remembered model that is no longer offered falls back to auto
+  const model: ModelChoice =
+    activeKey && MODELS[activeKey.provider].options.some((m) => m.id === storedModel)
+      ? storedModel
+      : "auto";
   const isBusy = isJudgementLoading || isPdfLoading;
+
+  const onKeyChange = (id: number) => {
+    setSelectedKeyId(id);
+    writeStored(KEY_CHOICE_STORAGE, String(id));
+  };
+
+  const onModelChange = (choice: ModelChoice) => {
+    if (!activeKey) return;
+    setModelChoices((choices) => ({ ...choices, [activeKey.provider]: choice }));
+    writeStored(modelChoiceStorage(activeKey.provider), choice);
+  };
+
+  // Checks the key with its provider unless it already passed; sets the error on failure
+  const ensureVerified = async (key: ApiKeyRecord) => {
+    if (verifiedKey?.id === key.id && verifiedKey.key === key.key) return true;
+    const { valid } = await verifyProviderKey(key.provider, key.key);
+    if (!valid) {
+      setStepError(`${getProvider(key.provider).label} servers unreachable or invalid key`);
+      return false;
+    }
+    setVerifiedKey({ id: key.id, key: key.key });
+    return true;
+  };
+
+  const picker = activeKey && (
+    <AIPicker
+      keys={keys}
+      activeKey={activeKey}
+      model={model}
+      onKeyChange={onKeyChange}
+      onModelChange={onModelChange}
+      disabled={isBusy}
+    />
+  );
 
   const onJudgeClick = async () => {
     setStepError(null);
     if (!activeKey) {
-      setStepError("Add a Gemini key in Settings first");
+      setStepError("Add an AI key in Settings first");
       return;
     }
     if (!jobDescription.trim().length) {
@@ -116,17 +195,10 @@ const ResumeGenerator = ({ resume, geminiKeys }: ResumeGeneratorProps) => {
 
     setIsJudgementLoading(true);
     try {
-      const aiCoreObject = new GoogleGenAI({ apiKey: activeKey.key });
-      const { valid } = await verifyApiKey(aiCoreObject);
-      if (!valid) {
-        setStepError("Gemini servers unreachable or invalid key");
-        return;
-      }
-
-      setAICore(aiCoreObject);
+      if (!(await ensureVerified(activeKey))) return;
 
       setJudgeResponse(
-        await judgeJobPosting(aiCoreObject, jobDescription, resume.jobPreferences),
+        await judgeJobPosting(activeKey, model, jobDescription, resume.jobPreferences),
       );
       setStep(1);
     } catch (error) {
@@ -138,8 +210,8 @@ const ResumeGenerator = ({ resume, geminiKeys }: ResumeGeneratorProps) => {
 
   const onGenerateClick = async () => {
     setStepError(null);
-    if (!aiCore) {
-      setStepError("Could not initialize Gemini");
+    if (!activeKey) {
+      setStepError("Add an AI key in Settings first");
       return;
     }
 
@@ -147,11 +219,14 @@ const ResumeGenerator = ({ resume, geminiKeys }: ResumeGeneratorProps) => {
     // Start downloading the PDF renderer while the AI calls run
     loadResumePreview().catch(() => {});
     try {
+      // The key may have been switched since the review
+      if (!(await ensureVerified(activeKey))) return;
+
       const userData = toUserData(resume);
       const [summary, skills, experience] = await Promise.all([
-        generateResumeSection(aiCore, "summary", jobDescription, userData),
-        generateResumeSection(aiCore, "skills", jobDescription, userData),
-        generateResumeSection(aiCore, "experience", jobDescription, userData),
+        generateResumeSection(activeKey, model, "summary", jobDescription, userData),
+        generateResumeSection(activeKey, model, "skills", jobDescription, userData),
+        generateResumeSection(activeKey, model, "experience", jobDescription, userData),
       ]);
 
       setSummaryData(summary.summary);
@@ -223,7 +298,7 @@ const ResumeGenerator = ({ resume, geminiKeys }: ResumeGeneratorProps) => {
             <p className="flex items-center gap-2 rounded-md border border-amber-500 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-500/60 dark:bg-amber-950/40 dark:text-amber-300">
               <KeyRound className="size-4 shrink-0" />
               <span>
-                No Gemini key saved.{" "}
+                No AI key saved.{" "}
                 <Link to="/settings/api-keys" className="font-medium underline">
                   Add one in Settings
                 </Link>{" "}
@@ -231,15 +306,7 @@ const ResumeGenerator = ({ resume, geminiKeys }: ResumeGeneratorProps) => {
               </span>
             </p>
           ) : (
-            geminiKeys.length > 1 && (
-              <SelectField
-                className="sm:max-w-xs"
-                label="Gemini key"
-                options={geminiKeys.map((k) => ({ value: String(k.id), label: k.label }))}
-                value={String(activeKey.id)}
-                onChange={(event) => setSelectedKeyId(Number(event.target.value))}
-              />
-            )
+            picker
           )}
           <TextAreaField
             label="Job description"
@@ -265,6 +332,7 @@ const ResumeGenerator = ({ resume, geminiKeys }: ResumeGeneratorProps) => {
         (judgeResponse ? (
           <>
             <JudgeResponse judgeResponse={judgeResponse} />
+            {picker && <div className="rounded-lg border p-4">{picker}</div>}
             <div className="flex justify-end">
               <Button className="rounded-md" onClick={onGenerateClick} disabled={isPdfLoading}>
                 {isPdfLoading ? <Loader2 className="animate-spin" /> : <Sparkles />}

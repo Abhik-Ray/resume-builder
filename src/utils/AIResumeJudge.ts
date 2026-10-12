@@ -1,5 +1,7 @@
-import { GoogleGenAI } from "@google/genai";
-import { MODELS } from "./models";
+import { generateText, Output } from "ai";
+import { z } from "zod";
+import { getModel, temperatureFor, type AIKey } from "./aiModel";
+import type { ModelChoice } from "./models";
 
 // 1. Define the User Preferences Input Type
 export interface JobPreferences {
@@ -17,80 +19,51 @@ const REMOTE_LEVELS = [
   "Possible Remote",
   "Fully Remote with possibility to work from India",
   "Fully Remote very likely to work from India",
-];
+] as const;
 
-// 2. Define the strict JSON Schema for the output
-const JOB_JUDGMENT_SCHEMA = {
-  type: "OBJECT",
-  properties: {
-    overallMatchScore: {
-      type: "INTEGER",
-      description:
-        "A score from 1 to 100 representing how well the job matches the user's preferences.",
-    },
-    matchAnalysis: {
-      type: "STRING",
-      description:
-        "A brief, 2-3 sentence summary explaining the score and overall fit.",
-    },
-    pros: {
-      type: "ARRAY",
-      items: { type: "STRING" },
-      description:
-        "Positive aspects of the job that directly align with the user's preferences.",
-    },
-    cons: {
-      type: "ARRAY",
-      items: { type: "STRING" },
-      description:
-        "Aspects of the job that misalign with the user's preferences or represent missing data.",
-    },
-    isRemote: {
-      type: "STRING",
-      enum: REMOTE_LEVELS,
-      description: "How likely the job is to be remote, picked from the allowed values.",
-    },
-    redFlags: {
-      type: "ARRAY",
-      items: { type: "STRING" },
-      description:
-        "Any toxic traits, vague responsibilities, impossible requirements, or deal-breakers found.",
-    },
-    verdict: {
-      type: "STRING",
-      description:
-        "A final 2-3 word recommendation (e.g., 'Apply Immediately', 'Proceed with Caution', 'Hard Pass').",
-    },
-  },
-  required: [
-    "overallMatchScore",
-    "matchAnalysis",
-    "pros",
-    "cons",
-    "isRemote",
-    "redFlags",
-    "verdict",
-  ],
-};
+// 2. Define the strict schema for the output. Every field is required.
+// No min/max on the score: not every provider accepts those constraints.
+export const JudgeResponseSchema = z.object({
+  overallMatchScore: z
+    .number()
+    .int()
+    .describe("A score from 1 to 100 representing how well the job matches the user's preferences."),
+  matchAnalysis: z
+    .string()
+    .describe("A brief, 2-3 sentence summary explaining the score and overall fit."),
+  pros: z
+    .array(z.string())
+    .describe("Positive aspects of the job that directly align with the user's preferences."),
+  cons: z
+    .array(z.string())
+    .describe(
+      "Aspects of the job that misalign with the user's preferences or represent missing data.",
+    ),
+  isRemote: z
+    .enum(REMOTE_LEVELS)
+    .describe("How likely the job is to be remote, picked from the allowed values."),
+  redFlags: z
+    .array(z.string())
+    .describe(
+      "Any toxic traits, vague responsibilities, impossible requirements, or deal-breakers found.",
+    ),
+  verdict: z
+    .string()
+    .describe(
+      "A final 2-3 word recommendation (e.g., 'Apply Immediately', 'Proceed with Caution', 'Hard Pass').",
+    ),
+});
 
-export interface JudgeResponseType {
-  overallMatchScore: number;
-  matchAnalysis: string;
-  pros: string[];
-  cons: string[];
-  isRemote: string;
-  redFlags: string[];
-  verdict: string;
-}
+export type JudgeResponseType = z.infer<typeof JudgeResponseSchema>;
 
 // 3. The Main Evaluation Function
 export const judgeJobPosting = async (
-  client: GoogleGenAI,
+  aiKey: AIKey,
+  model: ModelChoice,
   jobDescription: string,
   preferences: JobPreferences,
 ): Promise<JudgeResponseType> => {
-  // Use the fast model: cost-effective and excellent at structured data extraction/analysis.
-  const modelName = MODELS.fast;
+  // Auto uses the fast model: cost-effective and excellent at structured data extraction/analysis.
   const temperature = 0.2; // Low temperature for objective, analytical reasoning
 
   const prompt = `
@@ -116,23 +89,14 @@ export const judgeJobPosting = async (
   `;
 
   try {
-    const response = await client.models.generateContent({
-      model: modelName,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: JOB_JUDGMENT_SCHEMA,
-        temperature: temperature,
-      },
-      contents: prompt,
+    // The SDK validates the response against the schema and throws if it doesn't match
+    const { output } = await generateText({
+      model: getModel(aiKey, model, "fast"),
+      output: Output.object({ schema: JudgeResponseSchema }),
+      temperature: temperatureFor(aiKey.provider, temperature),
+      prompt,
     });
-
-    const textResponse = response.text;
-
-    if (!textResponse) {
-      throw new Error("Received empty response from the model.");
-    }
-
-    return JSON.parse(textResponse);
+    return output;
   } catch (error) {
     console.error("Job Judgment Error:", error);
     throw error;

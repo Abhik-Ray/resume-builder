@@ -1,6 +1,6 @@
 import { CircleCheck, CircleX, Eye, EyeOff, Loader2, Pencil, Plus, Star, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { Button } from "../../components/ui/button";
 import { SelectField, TextField } from "../../components/form/fields";
 import {
@@ -107,7 +107,7 @@ const ApiKeysSection = () => {
       {listedKeys.length === 0 ? (
         editing === null && (
           <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-            No keys yet. Add a Gemini key to start reviewing jobs.
+            No keys yet. Add a Gemini, OpenAI or Anthropic key to start reviewing jobs.
           </p>
         )
       ) : (
@@ -175,7 +175,10 @@ const ApiKeyForm = ({ initial, otherLabels, onDone }: ApiKeyFormProps) => {
     register,
     handleSubmit,
     getValues,
+    getFieldState,
+    setValue,
     trigger,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<ApiKeyFormValues>({
     defaultValues: {
@@ -196,6 +199,17 @@ const ApiKeyForm = ({ initial, otherLabels, onDone }: ApiKeyFormProps) => {
 
   // Cleared whenever the key or provider changes, so a pass always matches the current input
   const clearVerification = () => setVerifyResult(null);
+
+  const onProviderChange = () => {
+    clearVerification();
+    // Keep the generated label in step with the provider until the user edits it
+    if (!initial && !getFieldState("label").isDirty) {
+      setValue("label", makeDefaultLabel(getValues("provider")));
+    }
+  };
+
+  // useWatch, not watch(): the React Compiler would memoize watch()'s result
+  const selectedProvider = getProvider(useWatch({ control, name: "provider" }));
 
   const runHealthCheck = async (provider: ProviderId, key: string) => {
     setVerifyResult(null);
@@ -279,10 +293,21 @@ const ApiKeyForm = ({ initial, otherLabels, onDone }: ApiKeyFormProps) => {
           <SelectField
             label="Provider"
             options={PROVIDERS.map((p) => ({ value: p.id, label: p.label }))}
-            {...register("provider", { onChange: clearVerification })}
+            {...register("provider", { onChange: onProviderChange })}
             error={errors.provider?.message}
           />
         </div>
+        <p className="text-xs text-muted-foreground">
+          {selectedProvider.note}{" "}
+          <a
+            href={selectedProvider.keyUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="font-medium underline"
+          >
+            Get your {selectedProvider.label} key
+          </a>
+        </p>
         <div className="flex items-start gap-2">
           <TextField
             className="flex-1"

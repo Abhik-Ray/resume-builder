@@ -21,4 +21,7 @@ export const renderWithRouter = (
   return { router, ...render(<RouterProvider router={router} />) };
 };
 
+// Fake keys: tests never reach a provider
 export const GEMINI_KEY = "AIzaTestKey_0123456789abcdefghijklmnopq";
+export const OPENAI_KEY = "sk-test-openai-0123456789abcdef";
+export const ANTHROPIC_KEY = "sk-ant-test-0123456789abcdef";

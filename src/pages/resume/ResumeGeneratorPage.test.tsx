@@ -1,19 +1,16 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_RESUME_DATA, toUserData } from "../../data/ResumeData";
 import { addApiKey } from "../../db/apiKeys";
 import { saveResumeData } from "../../db/resumeData";
-import { GEMINI_KEY, renderWithRouter, resetDb } from "../../test/utils";
+import { ANTHROPIC_KEY, GEMINI_KEY, renderWithRouter, resetDb } from "../../test/utils";
 import type { JudgeResponseType } from "../../utils/AIResumeJudge";
+import { MODELS } from "../../utils/models";
+import { KEY_CHOICE_STORAGE, modelChoiceStorage } from "./aiChoice";
 import ResumeGeneratorPage from "./ResumeGeneratorPage";
 
-vi.mock("@google/genai", () => ({
-  GoogleGenAI: vi.fn(function (this: { apiKey: string }, options: { apiKey: string }) {
-    this.apiKey = options.apiKey;
-  }),
-}));
-vi.mock("../../utils/AIHealthCheck", () => ({ verifyApiKey: vi.fn() }));
+vi.mock("../../utils/AIHealthCheck", () => ({ verifyProviderKey: vi.fn() }));
 vi.mock("../../utils/AIResumeJudge", () => ({ judgeJobPosting: vi.fn() }));
 vi.mock("../../utils/AIResumeBuilder", () => ({ generateResumeSection: vi.fn() }));
 vi.mock("../../ResumePreview", () => ({
@@ -26,12 +23,11 @@ vi.mock("../../ResumePreview", () => ({
   ),
 }));
 
-import { GoogleGenAI } from "@google/genai";
-import { verifyApiKey } from "../../utils/AIHealthCheck";
+import { verifyProviderKey } from "../../utils/AIHealthCheck";
 import { generateResumeSection } from "../../utils/AIResumeBuilder";
 import { judgeJobPosting } from "../../utils/AIResumeJudge";
 
-const verify = vi.mocked(verifyApiKey);
+const verify = vi.mocked(verifyProviderKey);
 const judge = vi.mocked(judgeJobPosting);
 const generate = vi.mocked(generateResumeSection);
 
@@ -74,13 +70,15 @@ describe("ResumeGeneratorPage", () => {
     await resetDb();
     verify.mockReset().mockResolvedValue({ status: "healthy", valid: true });
     judge.mockReset().mockResolvedValue(judgement);
-    generate.mockReset().mockImplementation(async (_client, section) => SECTIONS[section] as never);
+    generate
+      .mockReset()
+      .mockImplementation(async (_key, _model, section) => SECTIONS[section] as never);
   });
 
   describe("without a key", () => {
     it("links to the API key settings and disables the review", async () => {
       const user = await setup();
-      expect(screen.getByText(/No Gemini key saved/)).toBeInTheDocument();
+      expect(screen.getByText(/No AI key saved/)).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Review job" })).toBeDisabled();
 
       await user.click(screen.getByRole("link", { name: "Add one in Settings" }));
@@ -97,9 +95,18 @@ describe("ResumeGeneratorPage", () => {
       await setup();
       expect(screen.getByRole("heading", { name: "Resume" })).toBeInTheDocument();
       expect(currentStep()).toHaveTextContent("Job description");
-      expect(screen.queryByText(/No Gemini key saved/)).not.toBeInTheDocument();
-      // A single key needs no picker
-      expect(screen.queryByLabelText("Gemini key")).not.toBeInTheDocument();
+      expect(screen.queryByText(/No AI key saved/)).not.toBeInTheDocument();
+    });
+
+    it("shows the key and its provider's models, defaulting to auto", async () => {
+      await setup();
+      expect(screen.getByLabelText("AI key")).toHaveDisplayValue("Personal · Gemini");
+      const model = screen.getByLabelText("Model");
+      expect(model).toHaveValue("auto");
+      const options = within(model)
+        .getAllByRole("option")
+        .map((o) => o.getAttribute("value"));
+      expect(options).toEqual(["auto", ...MODELS.gemini.options.map((m) => m.id)]);
     });
 
     it("asks for a job description first", async () => {
@@ -117,8 +124,13 @@ describe("ResumeGeneratorPage", () => {
       await reviewJob(user, "Senior React role");
 
       expect(await screen.findByText("Apply Immediately")).toBeInTheDocument();
-      expect(GoogleGenAI).toHaveBeenCalledWith({ apiKey: GEMINI_KEY });
-      expect(judge).toHaveBeenCalledWith(expect.anything(), "Senior React role", preferences);
+      expect(verify).toHaveBeenCalledWith("gemini", GEMINI_KEY);
+      expect(judge).toHaveBeenCalledWith(
+        expect.objectContaining({ provider: "gemini", key: GEMINI_KEY }),
+        "auto",
+        "Senior React role",
+        preferences,
+      );
       expect(currentStep()).toHaveTextContent("Job review");
     });
 
@@ -155,9 +167,47 @@ describe("ResumeGeneratorPage", () => {
       expect(within(preview).getByText("React, Vite")).toBeInTheDocument();
       expect(within(preview).getByText("Generated bullet")).toBeInTheDocument();
       for (const section of ["summary", "skills", "experience"]) {
-        expect(generate).toHaveBeenCalledWith(expect.anything(), section, "JD text", toUserData(resume));
+        expect(generate).toHaveBeenCalledWith(
+          expect.objectContaining({ key: GEMINI_KEY }),
+          "auto",
+          section,
+          "JD text",
+          toUserData(resume),
+        );
       }
+      // The key passed on review isn't checked again
+      expect(verify).toHaveBeenCalledTimes(1);
       expect(currentStep()).toHaveTextContent("Resume");
+    });
+
+    it("uses a model picked on the review step for generation", async () => {
+      const user = await setup();
+      await reviewJob(user);
+      await screen.findByRole("button", { name: "Generate resume" });
+      await user.selectOptions(screen.getByLabelText("Model"), "gemini-2.5-pro");
+      await user.click(screen.getByRole("button", { name: "Generate resume" }));
+
+      await screen.findByTestId("preview");
+      expect(judge).toHaveBeenCalledWith(expect.anything(), "auto", expect.anything(), expect.anything());
+      expect(generate).toHaveBeenCalledWith(
+        expect.anything(),
+        "gemini-2.5-pro",
+        "summary",
+        expect.anything(),
+        expect.anything(),
+      );
+    });
+
+    it("remembers the model per provider", async () => {
+      const user = await setup();
+      await user.selectOptions(screen.getByLabelText("Model"), "gemini-2.5-flash");
+      expect(localStorage.getItem(modelChoiceStorage("gemini"))).toBe("gemini-2.5-flash");
+    });
+
+    it("falls back to auto when the remembered model is no longer offered", async () => {
+      localStorage.setItem(modelChoiceStorage("gemini"), "gemini-1.0-retired");
+      await setup();
+      expect(screen.getByLabelText("Model")).toHaveValue("auto");
     });
 
     it("labels the button differently for weak matches", async () => {
@@ -208,12 +258,82 @@ describe("ResumeGeneratorPage", () => {
 
     it("defaults to the default key and lets you pick another", async () => {
       const user = await setup();
-      const picker = await screen.findByLabelText("Gemini key");
-      expect(within(picker).getByRole("option", { selected: true })).toHaveTextContent("Personal");
+      const picker = screen.getByLabelText("AI key");
+      expect(picker).toHaveDisplayValue("Personal · Gemini");
 
-      await user.selectOptions(picker, "Work");
+      await user.selectOptions(picker, "Work · Gemini");
       await reviewJob(user);
-      await waitFor(() => expect(GoogleGenAI).toHaveBeenCalledWith({ apiKey: "work-key" }));
+      await waitFor(() => expect(verify).toHaveBeenCalledWith("gemini", "work-key"));
+      expect(localStorage.getItem(KEY_CHOICE_STORAGE)).toBe((picker as HTMLSelectElement).value);
+    });
+  });
+
+  describe("with keys from several providers", () => {
+    beforeEach(async () => {
+      await addApiKey({ label: "Personal", provider: "gemini", key: GEMINI_KEY });
+      await addApiKey({ label: "Claude", provider: "anthropic", key: ANTHROPIC_KEY });
+    });
+
+    it("switches the model list and uses the Anthropic key", async () => {
+      const user = await setup();
+      await user.selectOptions(screen.getByLabelText("AI key"), "Claude · Anthropic");
+      const model = screen.getByLabelText("Model");
+      expect(within(model).getAllByRole("option").map((o) => o.getAttribute("value"))).toEqual([
+        "auto",
+        ...MODELS.anthropic.options.map((m) => m.id),
+      ]);
+      await user.selectOptions(model, "claude-opus-5-5");
+      await reviewJob(user, "JD");
+
+      await screen.findByText("Apply Immediately");
+      expect(verify).toHaveBeenCalledWith("anthropic", ANTHROPIC_KEY);
+      expect(judge).toHaveBeenCalledWith(
+        expect.objectContaining({ provider: "anthropic", key: ANTHROPIC_KEY }),
+        "claude-opus-5-5",
+        "JD",
+        expect.anything(),
+      );
+    });
+
+    it("re-verifies a key switched to after the review", async () => {
+      const user = await setup();
+      await reviewJob(user);
+      await screen.findByRole("button", { name: "Generate resume" });
+      await user.selectOptions(screen.getByLabelText("AI key"), "Claude · Anthropic");
+      await user.click(screen.getByRole("button", { name: "Generate resume" }));
+
+      await screen.findByTestId("preview");
+      expect(verify).toHaveBeenLastCalledWith("anthropic", ANTHROPIC_KEY);
+      expect(generate).toHaveBeenCalledWith(
+        expect.objectContaining({ provider: "anthropic" }),
+        "auto",
+        "summary",
+        expect.anything(),
+        expect.anything(),
+      );
+    });
+
+    it("stays on the review when the switched-to key fails", async () => {
+      const user = await setup();
+      await reviewJob(user);
+      await screen.findByRole("button", { name: "Generate resume" });
+      verify.mockResolvedValue({ status: "unhealthy", valid: false, reason: "bad" });
+      await user.selectOptions(screen.getByLabelText("AI key"), "Claude · Anthropic");
+      await user.click(screen.getByRole("button", { name: "Generate resume" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Anthropic servers unreachable or invalid key",
+      );
+      expect(generate).not.toHaveBeenCalled();
+      expect(screen.getByRole("button", { name: "Generate resume" })).toBeEnabled();
+    });
+
+    it("remembers the chosen key", async () => {
+      const user = await setup();
+      await user.selectOptions(screen.getByLabelText("AI key"), "Claude · Anthropic");
+      cleanup();
+      await setup();
+      expect(screen.getByLabelText("AI key")).toHaveDisplayValue("Claude · Anthropic");
     });
   });
 });
