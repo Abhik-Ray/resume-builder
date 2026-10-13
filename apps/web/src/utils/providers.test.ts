@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
+import { PROVIDER_IDS } from "@resume-builder/ai/providers";
 import { getProvider, PROVIDERS, type ProviderId } from "./providers";
 
 describe("providers", () => {
   it("offers Gemini, OpenAI and Anthropic", () => {
     expect(PROVIDERS.map((p) => p.id)).toEqual(["gemini", "openai", "anthropic"]);
+  });
+
+  it("describes every provider the AI package supports, in its order", () => {
+    expect(PROVIDERS.map((p) => p.id)).toEqual(PROVIDER_IDS);
   });
 
   it("looks a provider up by id", () => {

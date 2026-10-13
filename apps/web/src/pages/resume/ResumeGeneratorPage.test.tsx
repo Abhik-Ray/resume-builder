@@ -20,6 +20,10 @@ import ResumeGeneratorPage from "./ResumeGeneratorPage";
 vi.mock("../../utils/AIHealthCheck", () => ({ verifyProviderKey: vi.fn() }));
 vi.mock("../../utils/AIResumeJudge", () => ({ judgeJobPosting: vi.fn() }));
 vi.mock("../../utils/AIResumeBuilder", () => ({ generateResumeSection: vi.fn() }));
+vi.mock("../../utils/providerModels", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../utils/providerModels")>()),
+  listProviderModels: vi.fn(async () => []),
+}));
 vi.mock("../../ResumePreview", () => ({
   default: (props: { summaryData: string; skillsData: string[]; mainExperienceData: string[] }) => (
     <div data-testid="preview">
@@ -31,6 +35,7 @@ vi.mock("../../ResumePreview", () => ({
 }));
 
 import { verifyProviderKey } from "../../utils/AIHealthCheck";
+import { listProviderModels } from "../../utils/providerModels";
 import { generateResumeSection } from "../../utils/AIResumeBuilder";
 import { judgeJobPosting } from "../../utils/AIResumeJudge";
 
@@ -78,6 +83,7 @@ describe("ResumeGeneratorPage", () => {
     seedProfile();
     verify.mockReset().mockResolvedValue({ status: "healthy", valid: true });
     judge.mockReset().mockResolvedValue(judgement);
+    vi.mocked(listProviderModels).mockReset().mockResolvedValue([]);
     generate
       .mockReset()
       .mockImplementation(async (_key, _model, section) => SECTIONS[section] as never);
@@ -342,6 +348,30 @@ describe("ResumeGeneratorPage", () => {
       cleanup();
       await setup();
       expect(screen.getByLabelText("AI key")).toHaveDisplayValue("Claude · Anthropic");
+    });
+  });
+
+  describe("models from the account", () => {
+    it("adds the key's own models to the picker, and remembers a pick", async () => {
+      vi.mocked(listProviderModels).mockResolvedValue([
+        { id: "gemini-2.5-flash", label: "dup" },
+        { id: "gemini-3-pro", label: "Gemini 3 Pro" },
+      ]);
+      await addApiKey({ label: "Main", provider: "gemini", key: GEMINI_KEY });
+      const user = await setup();
+      const option = await screen.findByRole("option", { name: "Gemini 3 Pro" });
+      expect(screen.getAllByRole("option", { name: /Gemini 2.5 Flash|dup/ })).toHaveLength(1);
+      await user.selectOptions(screen.getByLabelText("Model"), option);
+      expect(screen.getByLabelText("Model")).toHaveValue("gemini-3-pro");
+      expect(listProviderModels).toHaveBeenCalledWith("gemini", GEMINI_KEY);
+    });
+
+    it("falls back to the defaults when the list can't be loaded", async () => {
+      vi.mocked(listProviderModels).mockRejectedValue(new Error("offline"));
+      await addApiKey({ label: "Main", provider: "gemini", key: GEMINI_KEY });
+      await setup();
+      expect(await screen.findByText(/Couldn't load your account's model list/)).toBeInTheDocument();
+      expect(screen.getByRole("option", { name: "Gemini 2.5 Pro" })).toBeInTheDocument();
     });
   });
 

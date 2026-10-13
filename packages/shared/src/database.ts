@@ -73,14 +73,14 @@ isOneToOne: false
                   ]
                 },"jobs": {
                   Row: {
-                    "company": string,"description": string | null,"external_id": string,"first_seen_at": string,"id": string,"last_seen_at": string,"location": string | null,"posted_at": string | null,"remote": boolean,"source": string,"title": string,"url": string
+                    "closed_at": string | null,"company": string,"description": string | null,"external_id": string,"first_seen_at": string,"id": string,"last_seen_at": string,"location": string | null,"posted_at": string | null,"remote": boolean,"source": string,"title": string,"url": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "company": string,"description"?: string | null,"external_id": string,"first_seen_at"?: string,"id"?: string,"last_seen_at"?: string,"location"?: string | null,"posted_at"?: string | null,"remote"?: boolean,"source": string,"title": string,"url": string
+                    "closed_at"?: string | null,"company": string,"description"?: string | null,"external_id": string,"first_seen_at"?: string,"id"?: string,"last_seen_at"?: string,"location"?: string | null,"posted_at"?: string | null,"remote"?: boolean,"source": string,"title": string,"url": string
                   }
                   Update: {
-                    "company"?: string,"description"?: string | null,"external_id"?: string,"first_seen_at"?: string,"id"?: string,"last_seen_at"?: string,"location"?: string | null,"posted_at"?: string | null,"remote"?: boolean,"source"?: string,"title"?: string,"url"?: string
+                    "closed_at"?: string | null,"company"?: string,"description"?: string | null,"external_id"?: string,"first_seen_at"?: string,"id"?: string,"last_seen_at"?: string,"location"?: string | null,"posted_at"?: string | null,"remote"?: boolean,"source"?: string,"title"?: string,"url"?: string
                   }
                   Relationships: [
                     
@@ -115,14 +115,28 @@ isOneToOne: false
                   ]
                 },"sync_runs": {
                   Row: {
-                    "errors": NonNullable<Json>,"finished_at": string | null,"id": number,"jobs_new": number,"jobs_seen": number,"matches_new": number,"started_at": string
+                    "errors": NonNullable<Json>,"finished_at": string | null,"id": number,"jobs_closed": number,"jobs_new": number,"jobs_seen": number,"matches_new": number,"started_at": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "errors"?: NonNullable<Json>,"finished_at"?: string | null,"id"?: never,"jobs_new"?: number,"jobs_seen"?: number,"matches_new"?: number,"started_at"?: string
+                    "errors"?: NonNullable<Json>,"finished_at"?: string | null,"id"?: never,"jobs_closed"?: number,"jobs_new"?: number,"jobs_seen"?: number,"matches_new"?: number,"started_at"?: string
                   }
                   Update: {
-                    "errors"?: NonNullable<Json>,"finished_at"?: string | null,"id"?: never,"jobs_new"?: number,"jobs_seen"?: number,"matches_new"?: number,"started_at"?: string
+                    "errors"?: NonNullable<Json>,"finished_at"?: string | null,"id"?: never,"jobs_closed"?: number,"jobs_new"?: number,"jobs_seen"?: number,"matches_new"?: number,"started_at"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"watched_companies": {
+                  Row: {
+                    "board": string,"created_at": string,"id": string,"name": string,"provider": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "board": string,"created_at"?: string,"id"?: string,"name": string,"provider": string,"user_id"?: string
+                  }
+                  Update: {
+                    "board"?: string,"created_at"?: string,"id"?: string,"name"?: string,"provider"?: string,"user_id"?: string
                   }
                   Relationships: [
                     

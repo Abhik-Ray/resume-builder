@@ -36,7 +36,7 @@ Database changes are SQL migrations in `supabase/migrations`, with pgTAP tests i
 
 ## Daily job search
 
-`apps/job-sync` runs every morning from GitHub Actions (`.github/workflows/job-sync.yml`). It queries Adzuna, Jooble and JSearch with each user's saved searches (Settings → Job searches) near their home location, stores the postings and matches them by keywords. New matches appear on the Jobs page, where they are judged with your own AI key in the browser. Run it locally with `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and at least one source key set: `pnpm --filter @resume-builder/job-sync start`.
+`apps/job-sync` runs every morning from GitHub Actions (`.github/workflows/job-sync.yml`). It queries Adzuna, Jooble and JSearch with each user's saved searches (Settings → Job searches) near their home location, stores the postings and matches them by keywords. New matches appear on the Jobs page, where they are judged with your own AI key in the browser. You can also watch companies' public Greenhouse or Lever boards. Postings that stop appearing are marked as no longer listed. Optionally, the owner's own AI key (Actions secret `OWNER_AI_API_KEY`, with variables `OWNER_USER_ID` and `OWNER_AI_PROVIDER`) pre-judges the owner's new matches. Run it locally with `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and at least one source key set: `pnpm --filter @resume-builder/job-sync start`.
 
 ## Customising your data
 

@@ -1,7 +1,9 @@
-import type { Database } from "@resume-builder/shared";
+import type { JudgeResponseType } from "@resume-builder/ai/judge";
+import type { Database, JobPreferences, ResumeDataType } from "@resume-builder/shared";
+import type { JudgeStore, UnjudgedMatch } from "./autoJudge";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { jobKey, type MatchInsert, type RunSummary, type SyncStore } from "./pipeline";
-import type { NormalizedJob, UserSearch } from "./types";
+import type { BoardProvider, NormalizedJob, SourceName, UserSearch, WatchedBoard } from "./types";
 
 type Client = SupabaseClient<Database>;
 
@@ -12,7 +14,7 @@ const chunks = <T>(items: T[]) =>
   Array.from({ length: Math.ceil(items.length / BATCH) }, (_, i) => items.slice(i * BATCH, (i + 1) * BATCH));
 
 // The service-role client bypasses RLS: the job sync is the only writer of jobs and matches
-export const supabaseStore = (supabase: Client): SyncStore => {
+export const supabaseStore = (supabase: Client): SyncStore & JudgeStore => {
   // The run's start on the database clock: jobs first seen after it are new
   let runStartedAt = Number.NEGATIVE_INFINITY;
   return {
@@ -31,6 +33,7 @@ export const supabaseStore = (supabase: Client): SyncStore => {
         jobs_seen: summary.jobsSeen,
         jobs_new: summary.jobsNew,
         matches_new: summary.matchesNew,
+        jobs_closed: summary.jobsClosed,
         errors: summary.errors as unknown as Database["public"]["Tables"]["sync_runs"]["Row"]["errors"],
       })
       .eq("id", id);
@@ -88,6 +91,8 @@ export const supabaseStore = (supabase: Client): SyncStore => {
             description: job.description,
             posted_at: job.postedAt,
             last_seen_at: now,
+            // Listed again, so open again
+            closed_at: null,
           })),
           { onConflict: "source,external_id" },
         )
@@ -124,6 +129,84 @@ export const supabaseStore = (supabase: Client): SyncStore => {
       inserted += data.length;
     }
     return inserted;
+  },
+
+  async loadWatchedBoards(): Promise<WatchedBoard[]> {
+    const { data, error } = await supabase.from("watched_companies").select("provider, board, name, user_id");
+    if (error) throw error;
+    const boards = new Map<string, WatchedBoard>();
+    for (const row of data) {
+      const key = `${row.provider}/${row.board}`;
+      const entry = boards.get(key) ?? {
+        provider: row.provider as BoardProvider,
+        board: row.board,
+        name: row.name,
+        userIds: [],
+      };
+      entry.userIds.push(row.user_id);
+      boards.set(key, entry);
+    }
+    return [...boards.values()];
+  },
+
+  async closeStaleJobs(sources: SourceName[], seenBefore: Date) {
+    const { data, error } = await supabase
+      .from("jobs")
+      .update({ closed_at: new Date().toISOString() })
+      .is("closed_at", null)
+      .in("source", sources)
+      .lt("last_seen_at", seenBefore.toISOString())
+      .select("id");
+    if (error) throw error;
+    return data.length;
+  },
+
+  async loadPreferences(userId: string): Promise<JobPreferences | null> {
+    const { data, error } = await supabase.from("profiles").select("resume_data").eq("user_id", userId).maybeSingle();
+    if (error) throw error;
+    return (data?.resume_data as ResumeDataType | null)?.jobPreferences ?? null;
+  },
+
+  async loadUnjudgedMatches(userId: string, limit: number): Promise<UnjudgedMatch[]> {
+    const matches = await supabase
+      .from("job_matches")
+      .select("job_id")
+      .eq("user_id", userId)
+      .eq("state", "new")
+      .is("verdict", null)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (matches.error) throw matches.error;
+    if (matches.data.length === 0) return [];
+    const jobs = await supabase
+      .from("jobs")
+      .select("id, title, company, location, description")
+      .in(
+        "id",
+        matches.data.map((m) => m.job_id),
+      );
+    if (jobs.error) throw jobs.error;
+    return jobs.data.map(({ id, ...job }) => ({ jobId: id, ...job }));
+  },
+
+  async saveVerdict(userId: string, jobId: string, verdict: JudgeResponseType) {
+    const { error } = await supabase
+      .from("job_matches")
+      .update({ verdict: verdict as unknown as Database["public"]["Tables"]["job_matches"]["Row"]["verdict"] })
+      .eq("user_id", userId)
+      .eq("job_id", jobId)
+      // Don't overwrite a verdict the owner made meanwhile in the browser
+      .is("verdict", null);
+    if (error) throw error;
+  },
+
+  async pruneClosedJobs(closedBefore: Date) {
+    const { error } = await supabase
+      .from("jobs")
+      .update({ description: null })
+      .lt("closed_at", closedBefore.toISOString())
+      .not("description", "is", null);
+    if (error) throw error;
   },
   };
 };

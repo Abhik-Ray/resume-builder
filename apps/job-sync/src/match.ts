@@ -30,6 +30,13 @@ export const matchesSearch = (job: NormalizedJob, search: UserSearch) => {
   return score !== null && score >= search.minScore ? score : null;
 };
 
+// Board postings come from anywhere: keep remote ones (when wanted) and those in the search's city
+export const boardLocationMatches = (job: NormalizedJob, search: UserSearch) => {
+  if (job.remote && (search.remoteOnly || search.includeRemote)) return true;
+  if (search.remoteOnly) return false;
+  return !!search.city && !!job.location && contains(job.location, search.city);
+};
+
 // The same posting can come from several sources or queries; keep the first
 export const dedupeJobs = (jobs: NormalizedJob[]): NormalizedJob[] => {
   const seenIds = new Set<string>();

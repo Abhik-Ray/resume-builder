@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dedupeJobs, matchesSearch, scoreJob } from "./match";
+import { boardLocationMatches, dedupeJobs, matchesSearch, scoreJob } from "./match";
 import type { NormalizedJob, UserSearch } from "./types";
 
 const job = (patch: Partial<NormalizedJob> = {}): NormalizedJob => ({
@@ -68,5 +68,19 @@ describe("dedupeJobs", () => {
       job({ externalId: "2", title: "Vue Developer" }),
     ]);
     expect(jobs.map((j) => `${j.source}:${j.externalId}`)).toEqual(["adzuna:1", "adzuna:2"]);
+  });
+});
+
+describe("boardLocationMatches", () => {
+  it.each([
+    ["in the search's city", { location: "Bengaluru, India" }, {}, true],
+    ["in another city", { location: "Berlin" }, {}, false],
+    ["with no location", { location: null }, {}, false],
+    ["remote, remote wanted", { remote: true, location: "Anywhere" }, { includeRemote: true }, true],
+    ["remote, remote not wanted", { remote: true, location: "Anywhere" }, { includeRemote: false }, false],
+    ["remote, remote-only search", { remote: true }, { remoteOnly: true, includeRemote: false }, true],
+    ["in the city, remote-only search", { location: "Bengaluru" }, { remoteOnly: true }, false],
+  ] satisfies [string, Partial<NormalizedJob>, Partial<UserSearch>, boolean][])("%s", (_, jobPatch, searchPatch, expected) => {
+    expect(boardLocationMatches(job(jobPatch), search(searchPatch))).toBe(expected);
   });
 });

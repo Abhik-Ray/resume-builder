@@ -31,6 +31,7 @@ A pnpm workspace (`pnpm-workspace.yaml`); no Turborepo or Nx, `pnpm -r` and `--f
 | --- | --- | --- |
 | `@resume-builder/web` | `apps/web` | The React app (everything under Layout below) |
 | `@resume-builder/job-sync` | `apps/job-sync` | The daily job sync (Node 22 + tsx), run by `.github/workflows/job-sync.yml` |
+| `@resume-builder/ai` | `packages/ai` | Model ids, `getModel` and the job judge, shared by the web app and the job sync's owner auto-judging. Imported by subpath (`/providers`, `/models`, `/model`, `/judge`) |
 | `@resume-builder/shared` | `packages/shared` | Types and zod schemas shared across apps, plus the generated database types |
 | (Supabase project) | `supabase/` | `config.toml`, SQL migrations, pgTAP tests |
 
@@ -49,7 +50,7 @@ Vitest + React Testing Library in jsdom (config in `apps/web/vite.config.ts`). P
 - `src/test/setup.ts` loads `fake-indexeddb` (real Dexie in tests) and jest-dom matchers, and replaces `lib/supabase.ts` with `test/fakeSupabase.ts`: an in-memory query builder that shows only the signed-in user's rows (like RLS). Every test starts signed in with no rows; `fakeSupabase.reset({ signedIn: false })`, `.seed()`, `.rows()` and `.failNext(table, message)` control it. Extend the fake when the app uses a new query-builder method.
 - `src/test/utils.tsx`: `resetDb()` for a clean IndexedDB per test; `renderWithRouter()` renders a page in a data router behind `RequireAuth` with the app's providers (it skips the post-sign-in details redirect unless `detailsPrompt: true`); `seedProfile()` gives the test user a complete profile.
 - Pages render after the session loads, so wait with `findBy…` before the first assertion.
-- Mock AI calls at the module boundary; never hit a provider. Pages mock `utils/AIHealthCheck`, `AIResumeJudge` and `AIResumeBuilder`. Those modules' own tests mock `ai` (`generateText`, `Output`) and `./aiModel`'s `getModel`; `AIHealthCheck.test.ts` stubs `fetch`. Fake keys live in `src/test/utils.tsx`.
+- Mock AI calls at the module boundary; never hit a provider. Pages mock `utils/AIHealthCheck`, `AIResumeJudge`, `AIResumeBuilder` and `providerModels`. Those modules' own tests (the judge's are in `packages/ai`) mock `ai` (`generateText`, `Output`) and `./aiModel`'s `getModel`; `AIHealthCheck.test.ts` and `providerModels.test.ts` stub `fetch`. Fake keys live in `src/test/utils.tsx`.
 - Mock `@react-pdf/renderer` with `vi.mock("@react-pdf/renderer", () => import("<rel>/test/reactPdfMock"))` so PDF layouts render as DOM.
 - `router.tsx` exports `routes` so route tests can use `createMemoryRouter(routes)`.
 
@@ -69,8 +70,8 @@ apps/web/src/
   pages/HomePage.tsx    Dashboard home: stat tiles from the tracker and today's matches
   pages/jobs/JobsPage.tsx   Matches inbox: tabs by state, judge new matches in the browser, generate a resume, mark applied
   pages/jobs/judging.ts     judgeInBatches (a few at a time, failures collected)
-  pages/settings/JobSearchesSection.tsx   Saved searches (keywords, excludes, city, remote only, min score)
-  pages/applications/ApplicationsPage.tsx   Tracker table (status dropdown, delete, resume sent); ApplicationForm.tsx is shared with the Resume flow
+  pages/settings/JobSearchesSection.tsx   Saved searches (keywords, excludes, city, remote only, min score); WatchedCompanies.tsx for Greenhouse/Lever boards
+  pages/applications/ApplicationsPage.tsx   Tracker: table or kanban board (ApplicationsBoard.tsx, drag or dropdown), delete, resume sent; ApplicationForm.tsx is shared with the Resume flow
   pages/stats/StatsPage.tsx   Stat tiles, funnel and weekly charts, status changes; weeks.ts fills empty weeks
   components/charts/    HTML bar/column charts (tooltip + table view), StatTile, number formats
   pages/resume/ResumeGeneratorPage.tsx  The 3-step flow (JD → job review → PDF) and its state
@@ -91,14 +92,14 @@ apps/web/src/
   db/stats.ts           Reads the stats views
   db/matches.ts         job_matches + their jobs, triage/verdict updates, latest sync run
   db/searchProfiles.ts  search_profiles CRUD + hooks
+  db/watchedCompanies.ts   watched_companies CRUD + hooks
   ResumePreview.tsx     PDFViewer wrapper, lazy-loaded by ResumeGeneratorPage
   pdf.tsx               The resume PDF layout (@react-pdf/renderer); takes the resume as a prop
   data/ResumeData.ts    DEFAULT_RESUME_DATA (seed) + toUserData/getTweakableBullets helpers
   types/input.ts        UserData/WorkHistory, and re-exports of the shared resume types
-  utils/models.ts       Model ids per provider (fast/creative + picker options) — the only place to set them
+  utils/models.ts, aiModel.ts, AIResumeJudge.ts   Re-exports of @resume-builder/ai (tests and pages mock these paths)
   utils/providers.ts    AI providers for keys (Gemini, OpenAI, Anthropic), key links and notes
-  utils/aiModel.ts      getModel(): builds the AI SDK model for a key — the only importer of @ai-sdk/*
-  utils/AIResumeJudge.ts    Job-judging prompt, zod schema and JudgeResponseType
+  utils/providerModels.ts   The models a key can use, from the provider's list (merged into the Resume picker)
   utils/AIResumeBuilder.ts  Per-section resume generation (summary/experience/skills)
   utils/AIHealthCheck.ts    API key validation (fetch to each provider's models endpoint)
   lib/utils.ts          `cn()` class-name helper
@@ -111,14 +112,21 @@ packages/shared/src/
   details.ts            Details form schema (resume data + home location) and its form values
   detailsCheck.ts       missingDetails/isDetailsComplete (zod-free) and ProfileRow
   applications.ts       APPLICATION_STATUSES (mirrors the enum, in order), labels, ResumeSnapshot, form schema
-  jobs.ts               Job/match/search types, MATCH_STATES, keyword scores, saved-search form schema
+  jobs.ts               Job/match/search types, MATCH_STATES, keyword scores, saved-search and watch-list schemas, jobPostingText
+
+packages/ai/src/
+  providers.ts          PROVIDER_IDS, ProviderId, ANTHROPIC_BROWSER_HEADER
+  models.ts             Model ids per provider (fast/creative + picker options) — the only place to set them
+  aiModel.ts            getModel(): builds the AI SDK model for a key — the only importer of @ai-sdk/*
+  AIResumeJudge.ts      Job-judging prompt, zod schema and JudgeResponseType
 
 apps/job-sync/src/
   index.ts              Entry: env, Supabase service-role client, runSync, exit code
   pipeline.ts           runSync and the SyncStore interface; store.ts is the Supabase version
   query.ts              planQueries: one shared query per unique (keywords, location)
   match.ts              scoreJob/matchesSearch (deterministic) and dedupeJobs
-  sources/              adzuna, jooble, jsearch: searchJobs(query) → NormalizedJob[]; http.ts validates responses
+  sources/              adzuna, jooble, jsearch: searchJobs(query); greenhouse, lever: listJobs(board) for watched companies; http.ts validates responses
+  autoJudge.ts          Optional owner auto-judging (OWNER_USER_ID, OWNER_AI_PROVIDER, OWNER_AI_API_KEY)
   fixtures/             Recorded responses for the source tests
   database.ts           Generated by `pnpm db:types`; don't edit
 
@@ -136,15 +144,15 @@ Hash URLs (`#/login`, `#/`, `#/jobs`, `#/resume`, `#/applications`, `#/stats`, `
 
 - **Personal data comes from the DB, not imports.** Each user's resume data and home location live in their `profiles` row. `DEFAULT_RESUME_DATA` in `apps/web/src/data/ResumeData.ts` is only the fallback until they save their own; components read the live copy with `useProfile()` / `useResumeData()` and pass it down (to `pdf.tsx`, `toUserData()`, `judgeJobPosting`). Don't hardcode names, contacts or experience in components or prompts. When changing `ResumeDataType` (in `packages/shared`), update `resumeDataSchema.ts` next to it and the settings form too (the schema `satisfies z.ZodType<ResumeDataType>`).
 - **Forms use react-hook-form + zod** via `zodResolver`, with the fields in `components/form/`. String arrays use `StringListField` (`useFieldArray` only handles arrays of objects).
-- **New AI providers** need four entries: `PROVIDERS` (`utils/providers.ts`), `MODELS` (`utils/models.ts`), a case in `getModel` (`utils/aiModel.ts`, with its `@ai-sdk/*` package) and a health check in `verifyProviderKey` (`AIHealthCheck.ts`). The provider must accept calls from a browser (CORS). Keys are verified against the provider before they are saved, not by format.
-- **Model ids come from `MODELS` in `apps/web/src/utils/models.ts`.** Don't write model strings inline. AI functions take a `ModelChoice`: `"auto"` maps each task to the provider's `fast` or `creative` model; anything else is a model id from the picker.
+- **New AI providers** need these entries: `PROVIDER_IDS` (`packages/ai/src/providers.ts`), `PROVIDERS` (`apps/web/src/utils/providers.ts`), `MODELS` (`packages/ai/src/models.ts`), a case in `getModel` (`packages/ai/src/aiModel.ts`, with its `@ai-sdk/*` package), a health check in `verifyProviderKey` (`AIHealthCheck.ts`) and a model list in `listProviderModels` (`providerModels.ts`). The provider must accept calls from a browser (CORS). Keys are verified against the provider before they are saved, not by format.
+- **Model ids come from `MODELS` in `packages/ai/src/models.ts`.** Don't write model strings inline. The Resume picker adds the key's own models from the provider's list; `MODELS` stays the curated default. AI functions take a `ModelChoice`: `"auto"` maps each task to the provider's `fast` or `creative` model; anything else is a model id from the picker.
 - **AI calls use structured output.** Each call uses `generateText` with `Output.object({ schema })` and a zod schema whose fields are all required; the SDK validates the response and throws if it doesn't match. Avoid zod constraints providers may reject in strict schemas (`min`/`max`, regex); describe them instead. When adding a field, update the schema (the types are inferred from it) and the consuming UI together. Pass `temperatureFor(provider, t)`, not a raw temperature.
 - **Every AI and Supabase call in the UI goes through try/catch/finally** (or a query's error state) that sets an error message and clears the loading flag. Never leave a spinner that can get stuck.
 - **Database changes are migrations** in `supabase/migrations` (`pnpm supabase migration new <name>`). Every table gets RLS with policies `to authenticated` only; user-owned tables have `user_id references auth.users on delete cascade` and `(select auth.uid()) = user_id` policies. Never grant anything to `anon` (the first migration revokes its defaults and `00_anon.test.sql` checks it). Views use `with (security_invoker = true)`. Add pgTAP tests for new policies, then run `pnpm db:types` and update the fake's defaults if the table is new.
 - **Keep `@react-pdf/renderer` out of the main bundle.** Only `pdf.tsx` and `ResumePreview.tsx` may import it, and `ResumePreview` must stay behind `React.lazy`.
 - **Use relative imports.** The `@/` alias isn't wired up (see Gotchas).
 - **Application status changes are recorded by the database.** The UI only updates `applications.status`; a trigger writes `application_events` (users can't insert them) and sets `applied_at`. The stats views read the events. The status enum's declaration order is the funnel order; if you add a status, update `APPLICATION_STATUSES` too (a test checks they match).
-- **The job sync only calls official job-search APIs** (no scraping) and judges nothing: AI keys never leave the browser, so matches are judged on the Jobs page with the user's own key. Each source validates its response with zod and throws `SourceError` (never include request URLs or bodies in messages: some providers put the key in the URL). A failing source lands in `sync_runs.errors` and the others continue. Users can read jobs, matches and runs but only change a match's `state` and `verdict` (column grant); everything else is written by the service role. Job-sync tests use recorded fixtures and an in-memory `SyncStore`; never hit a real API.
+- **The job sync only calls official job-search APIs** (no scraping) and judges nothing: AI keys never leave the browser, so matches are judged on the Jobs page with the user's own key. Each source validates its response with zod and throws `SourceError` (never include request URLs or bodies in messages: some providers put the key in the URL). A failing source lands in `sync_runs.errors` and the others continue. Postings no working source has listed for 30 days get `closed_at` ("no longer listed", not proven closed) and lose their description after 90 days; a posting that comes back reopens. Owner auto-judging is off unless its three settings exist, never fails the run, and logs error messages only (Actions logs are public). Users can read jobs, matches and runs but only change a match's `state` and `verdict` (column grant); everything else is written by the service role. Job-sync tests use recorded fixtures and an in-memory `SyncStore`; never hit a real API.
 - **Charts** are plain HTML in `components/charts` with the `--viz-series` color token (light and dark validated with the dataviz skill). Every chart has hover/focus tooltips and a "Show as table" view; text uses text colors, never the series color.
 - Icons: `lucide-react`.
 - Commits follow Conventional Commits (`feat:`, `fix:`, `chore:`, `feat!:` for breaking changes).
@@ -154,7 +162,7 @@ Hash URLs (`#/login`, `#/`, `#/jobs`, `#/resume`, `#/applications`, `#/stats`, `
 - **Supabase keys:** the publishable key and project URL are public by design and ship in the bundle (`VITE_SUPABASE_*`). The service-role key bypasses RLS: it lives only in Actions secrets for server-side jobs and must never reach the web app.
 - **Never log or commit API keys.** They are user-supplied at runtime and stored unencrypted in IndexedDB. A legacy `localStorage.geminiKey` is moved into the DB when the database is first created. Don't add `VITE_*` env vars for AI keys: Vite inlines them into the public bundle. Keys stay in the browser by design, even if a backend is added: never send them to our own servers or store them in a remote database. Send keys in headers, never in URLs.
 - **Provider quirks.** Anthropic only accepts browser calls with the `anthropic-dangerous-direct-browser-access` header (`ANTHROPIC_BROWSER_HEADER` in `providers.ts`). OpenAI's current models are reasoning models that reject `temperature`, so `temperatureFor` drops it for OpenAI.
-- **The AI SDK is large (~180 kB gzipped).** Only `utils/aiModel.ts` imports `@ai-sdk/*`, so the SDK ships only with the Resume page. Don't import `aiModel` from Settings or shared modules.
+- **The AI SDK is large (~180 kB gzipped).** Only `packages/ai/src/aiModel.ts` imports `@ai-sdk/*`, so the SDK ships only with the Resume and Jobs pages. Import `@resume-builder/ai` by subpath, and never `/model` or `/judge` from Settings or other shared modules (`/providers` and `/models` are SDK-free).
 - **`@/` path alias doesn't work.** In `apps/web/tsconfig.app.json`, `paths` sits outside `compilerOptions` and Vite has no `resolve.alias`. Run the shadcn CLI from `apps/web`; files it adds import from `@/...` and must be rewritten to relative paths (or the alias fixed in both places).
 - **`apps/web/components.json` still says `iconLibrary: "phosphor"`,** but `@phosphor-icons/react` was removed. Components added with the shadcn CLI may import Phosphor; switch them to `lucide-react`.
 - **`apps/web/vite.config.ts` uses `base: '/resume-builder/'`.** Asset paths must work under that prefix.

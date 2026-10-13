@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { MODELS, resolveModelId } from "./models";
-import { PROVIDERS } from "./providers";
+import { PROVIDER_IDS } from "./providers";
 
 describe("MODELS", () => {
-  it.each(PROVIDERS.map((p) => p.id))("offers %s's fast and creative models", (provider) => {
+  it.each(PROVIDER_IDS)("offers %s's fast and creative models", (provider) => {
     const ids = MODELS[provider].options.map((m) => m.id);
     expect(ids).toContain(MODELS[provider].fast);
     expect(ids).toContain(MODELS[provider].creative);

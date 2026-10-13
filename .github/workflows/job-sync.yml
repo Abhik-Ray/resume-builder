@@ -40,3 +40,8 @@ jobs:
           ADZUNA_APP_KEY: ${{ secrets.ADZUNA_APP_KEY }}
           JOOBLE_API_KEY: ${{ secrets.JOOBLE_API_KEY }}
           RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
+          # Optional owner auto-judging (off unless all three are set): the owner's user id
+          # (a variable), the provider (gemini, openai or anthropic) and their own key
+          OWNER_USER_ID: ${{ vars.OWNER_USER_ID }}
+          OWNER_AI_PROVIDER: ${{ vars.OWNER_AI_PROVIDER }}
+          OWNER_AI_API_KEY: ${{ secrets.OWNER_AI_API_KEY }}

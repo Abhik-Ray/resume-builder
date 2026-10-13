@@ -1,4 +1,5 @@
 import {
+  jobPostingText,
   MATCH_STATE_LABELS,
   MATCH_STATES,
   missingDetails,
@@ -175,7 +176,7 @@ const JudgeBar = ({ matches }: { matches: Match[] }) => {
           const verdict = await judgeJobPosting(
             key,
             "auto",
-            `${match.job.title} at ${match.job.company}\n${match.job.location ?? ""}\n\n${match.job.description ?? ""}`,
+            jobPostingText(match.job),
             preferences,
           );
           await updateMatch.mutateAsync({ jobId: match.job_id, patch: { verdict } });
@@ -305,6 +306,12 @@ const MatchCard = ({ match }: { match: Match }) => {
             {job.remote && " · Remote"}
             {` · keyword score ${match.keyword_score}`}
           </span>
+          {job.closed_at && (
+            <span className="text-xs text-amber-700 dark:text-amber-400">
+              No longer listed since {new Date(job.closed_at).toLocaleDateString(undefined, { dateStyle: "medium" })}
+              ; it may be closed.
+            </span>
+          )}
         </div>
         {verdict && (
           <span className="rounded-md border px-2 py-1 text-xs">

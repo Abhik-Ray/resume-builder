@@ -79,4 +79,59 @@ describe("JobSearchesSection", () => {
     await user.click(screen.getByRole("button", { name: "Save search" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Save failed: write refused");
   });
+
+  describe("watched companies", () => {
+    it("watches a company from its board URL", async () => {
+      const user = await setup();
+      const form = screen.getByRole("form", { name: "Watch a company" });
+      await user.type(within(form).getByLabelText("Company"), "Globex");
+      await user.type(within(form).getByLabelText("Board URL or name"), "https://jobs.lever.co/globex");
+      await user.click(within(form).getByRole("button", { name: "Watch" }));
+
+      expect(await screen.findByRole("link", { name: "Lever board" })).toHaveAttribute(
+        "href",
+        "https://jobs.lever.co/globex",
+      );
+      expect(fakeSupabase.rows("watched_companies")[0]).toMatchObject({
+        user_id: TEST_USER.id,
+        provider: "lever",
+        board: "globex",
+        name: "Globex",
+      });
+      expect(within(form).getByLabelText("Company")).toHaveValue("");
+    });
+
+    it("rejects something that isn't a board", async () => {
+      const user = await setup();
+      const form = screen.getByRole("form", { name: "Watch a company" });
+      await user.type(within(form).getByLabelText("Company"), "Acme");
+      await user.type(within(form).getByLabelText("Board URL or name"), "not a board");
+      await user.click(within(form).getByRole("button", { name: "Watch" }));
+      expect(await screen.findByText("Use the board's URL or its name, e.g. acme")).toBeInTheDocument();
+    });
+
+    it("says when the board is already watched", async () => {
+      fakeSupabase.seed("watched_companies", [
+        { id: "w1", user_id: TEST_USER.id, provider: "greenhouse", board: "acme", name: "Acme" },
+      ]);
+      const user = await setup();
+      const form = screen.getByRole("form", { name: "Watch a company" });
+      await user.type(within(form).getByLabelText("Company"), "Acme");
+      await user.type(within(form).getByLabelText("Board URL or name"), "acme");
+      await user.click(within(form).getByRole("button", { name: "Watch" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Couldn't add the company: You already watch this board",
+      );
+    });
+
+    it("stops watching", async () => {
+      fakeSupabase.seed("watched_companies", [
+        { id: "w1", user_id: TEST_USER.id, provider: "greenhouse", board: "acme", name: "Acme" },
+      ]);
+      const user = await setup();
+      await user.click(await screen.findByRole("button", { name: "Stop watching Acme" }));
+      await waitFor(() => expect(fakeSupabase.rows("watched_companies")).toHaveLength(0));
+    });
+  });
 });
+
