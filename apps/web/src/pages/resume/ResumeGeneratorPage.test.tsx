@@ -344,6 +344,38 @@ describe("ResumeGeneratorPage", () => {
     });
   });
 
+  describe("save as application", () => {
+    it("saves the job with the generated resume", async () => {
+      await addApiKey({ label: "Main", provider: "gemini", key: GEMINI_KEY });
+      const user = await setup();
+      await reviewJob(user, "JD text");
+      await user.click(await screen.findByRole("button", { name: "Generate resume" }));
+      await screen.findByTestId("preview");
+
+      const form = screen.getByRole("region", { name: "Save as application" });
+      await user.type(within(form).getByLabelText("Company"), "Acme");
+      await user.type(within(form).getByLabelText("Job title"), "Frontend Engineer");
+      await user.click(within(form).getByRole("button", { name: "Save as application" }));
+
+      expect(await screen.findByRole("link", { name: "applications" })).toHaveAttribute(
+        "href",
+        "/applications",
+      );
+      expect(fakeSupabase.rows("applications")[0]).toMatchObject({
+        company: "Acme",
+        title: "Frontend Engineer",
+        status: "applied",
+        jd_text: "JD text",
+        resume_snapshot: {
+          resume: DEFAULT_RESUME_DATA,
+          summary: "Generated summary",
+          skills: ["React", "Vite"],
+          experienceBullets: ["Generated bullet"],
+        },
+      });
+    });
+  });
+
   describe("details gate", () => {
     it("asks for missing details and links to the Details page", async () => {
       seedProfile({ home_city: null }, null);

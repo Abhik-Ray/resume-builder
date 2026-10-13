@@ -1,4 +1,12 @@
-import { FileText, LayoutDashboard, Loader2, LogOut, Settings } from "lucide-react";
+import {
+  BarChart3,
+  Briefcase,
+  FileText,
+  LayoutDashboard,
+  Loader2,
+  LogOut,
+  Settings,
+} from "lucide-react";
 import { NavLink, Outlet } from "react-router";
 import { Suspense, useState } from "react";
 import { signOut } from "../auth/actions";
@@ -8,6 +16,8 @@ import { cn } from "../lib/utils";
 const NAV_ITEMS = [
   { to: "/", label: "Home", icon: LayoutDashboard, end: true },
   { to: "/resume", label: "Resume", icon: FileText, end: false },
+  { to: "/applications", label: "Applications", icon: Briefcase, end: false },
+  { to: "/stats", label: "Stats", icon: BarChart3, end: false },
   { to: "/settings", label: "Settings", icon: Settings, end: false },
 ];
 

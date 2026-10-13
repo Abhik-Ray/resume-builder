@@ -7,6 +7,8 @@ import { RequireAuth } from "./auth/RequireAuth";
 // Hash URLs because GitHub Pages can't fall back to index.html for deep links
 const LoginPage = lazy(() => import("./pages/login/LoginPage"));
 const HomePage = lazy(() => import("./pages/HomePage"));
+const ApplicationsPage = lazy(() => import("./pages/applications/ApplicationsPage"));
+const StatsPage = lazy(() => import("./pages/stats/StatsPage"));
 const ResumeGeneratorPage = lazy(() => import("./pages/resume/ResumeGeneratorPage"));
 const SettingsLayout = lazy(() => import("./pages/settings/SettingsLayout"));
 const SettingsHome = lazy(() => import("./pages/settings/SettingsHome"));
@@ -38,6 +40,8 @@ export const routes: RouteObject[] = [
         children: [
           { index: true, element: <HomePage /> },
           { path: "resume", element: <ResumeGeneratorPage /> },
+          { path: "applications", element: <ApplicationsPage /> },
+          { path: "stats", element: <StatsPage /> },
           {
             path: "settings",
             element: <SettingsLayout />,

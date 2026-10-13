@@ -1,3 +1,4 @@
+export * from "./applications";
 export * from "./database";
 export * from "./details";
 export * from "./detailsCheck";
