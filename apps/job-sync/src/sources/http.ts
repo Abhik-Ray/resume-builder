@@ -34,13 +34,20 @@ export const fetchJson = async <T>(
   return parsed.data;
 };
 
-// Collapses HTML and whitespace in descriptions and snippets
+const decodeEntities = (value: string) =>
+  value
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&");
+
+// Collapses HTML and whitespace in descriptions and snippets. Entities are decoded before and
+// after removing tags, because Greenhouse escapes its (already escaped) HTML once more.
 export const plainText = (value: string | null | undefined) =>
   value
-    ? value
-        .replace(/<[^>]*>/g, " ")
-        .replace(/&nbsp;/g, " ")
-        .replace(/&amp;/g, "&")
+    ? decodeEntities(decodeEntities(value).replace(/<[^>]*>/g, " "))
         .replace(/\s+/g, " ")
         .trim() || null
     : null;

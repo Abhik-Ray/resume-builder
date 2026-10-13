@@ -14,6 +14,7 @@ import { CheckboxField, TextField } from "../../components/form/fields";
 import { StringListField } from "../../components/form/StringListField";
 import { Button } from "../../components/ui/button";
 import { useProfile } from "../../db/profile";
+import { WatchedCompanies } from "./WatchedCompanies";
 import {
   useDeleteSearchProfile,
   useSaveSearchProfile,
@@ -84,6 +85,7 @@ const JobSearchesSection = () => {
           )}
         </ul>
       )}
+      <WatchedCompanies />
     </div>
   );
 };

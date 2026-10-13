@@ -1,0 +1,24 @@
+{
+  "jobs": [
+    {
+      "id": 4012345,
+      "title": "Senior Frontend Engineer (React)",
+      "absolute_url": "https://boards.greenhouse.io/acme/jobs/4012345",
+      "updated_at": "2026-10-10T12:00:00-04:00",
+      "first_published": "2026-10-01T09:00:00-04:00",
+      "company_name": "Acme",
+      "location": { "name": "Bengaluru, India" },
+      "content": "&lt;p&gt;We build with &lt;strong&gt;React&lt;/strong&gt; &amp;amp; TypeScript.&lt;/p&gt;",
+      "metadata": null
+    },
+    {
+      "id": 4012346,
+      "title": "Platform Engineer",
+      "absolute_url": "https://boards.greenhouse.io/acme/jobs/4012346",
+      "updated_at": "2026-10-09T12:00:00-04:00",
+      "location": { "name": "Remote - India" },
+      "content": null
+    }
+  ],
+  "meta": { "total": 2 }
+}

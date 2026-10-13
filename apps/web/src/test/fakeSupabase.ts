@@ -27,6 +27,8 @@ let session: Session | null = null;
 const primaryKeys: Record<string, string[]> = {
   profiles: ["user_id"],
   job_matches: ["user_id", "job_id"],
+  // unique (user_id, provider, board)
+  watched_companies: ["user_id", "provider", "board"],
 };
 // Column defaults applied on insert, mirroring the migrations
 const defaults: Record<string, () => Row> = {
@@ -50,6 +52,10 @@ const defaults: Record<string, () => Row> = {
     active: true,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
+  }),
+  watched_companies: () => ({
+    user_id: session?.user.id,
+    created_at: new Date().toISOString(),
   }),
   job_matches: () => ({
     search_profile_id: null,
@@ -216,7 +222,9 @@ class Query implements PromiseLike<Result> {
           if ("user_id" in input && input.user_id !== session.user.id) {
             return { data: null, error: new FakePostgrestError("new row violates row-level security policy", "42501") };
           }
-          const existing = rows.find((row) => keys.every((k) => k in input && row[k] === input[k]));
+          // Keys are compared after column defaults apply (user_id defaults to the caller)
+          const candidate: Row = { id: crypto.randomUUID(), ...defaults[this.name]?.(), ...input };
+          const existing = rows.find((row) => keys.every((k) => k in candidate && row[k] === candidate[k]));
           if (existing && this.operation === "insert") {
             return { data: null, error: new FakePostgrestError("duplicate key value", "23505") };
           }
@@ -226,7 +234,7 @@ class Query implements PromiseLike<Result> {
             triggers[this.name]?.(existing, previous);
             result.push(existing);
           } else {
-            const row = { id: crypto.randomUUID(), ...defaults[this.name]?.(), ...input };
+            const row = candidate;
             rows.push(row);
             triggers[this.name]?.(row, undefined);
             result.push(row);

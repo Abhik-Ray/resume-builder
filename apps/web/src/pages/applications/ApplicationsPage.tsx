@@ -5,7 +5,7 @@ import {
   type ApplicationStatus,
   type ResumeSnapshot,
 } from "@resume-builder/shared";
-import { ExternalLink, FileText, Loader2, Plus, Trash2, X } from "lucide-react";
+import { Columns3, ExternalLink, FileText, Loader2, Plus, Table2, Trash2, X } from "lucide-react";
 import { lazy, Suspense, useState } from "react";
 import { Button } from "../../components/ui/button";
 import { inputClass } from "../../components/form/styles";
@@ -15,8 +15,15 @@ import {
   useDeleteApplication,
   useSetApplicationStatus,
 } from "../../db/applications";
+import { readStored, writeStored } from "../../lib/storage";
 import { cn } from "../../lib/utils";
 import { ApplicationForm } from "./ApplicationForm";
+import { ApplicationsBoard } from "./ApplicationsBoard";
+
+// Table or board, remembered in this browser
+const VIEW_STORAGE = "applications.view";
+type View = "table" | "board";
+const readView = (): View => (readStored(VIEW_STORAGE) === "board" ? "board" : "table");
 
 // The PDF renderer is large; it loads only when a saved resume is opened
 const ResumePreview = lazy(() => import("../../ResumePreview"));
@@ -37,6 +44,11 @@ const ApplicationsPage = () => {
   const applications = useApplications();
   const createApplication = useCreateApplication();
   const [adding, setAdding] = useState(false);
+  const [view, setView] = useState(readView);
+  const chooseView = (next: View) => {
+    setView(next);
+    writeStored(VIEW_STORAGE, next);
+  };
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 p-4">
@@ -46,6 +58,25 @@ const ApplicationsPage = () => {
           <p className="text-xs text-muted-foreground">
             Every change of status is recorded for the charts on the Stats page.
           </p>
+        </div>
+        <div role="group" aria-label="View" className="flex rounded-md border">
+          {(
+            [
+              ["table", "Table", Table2],
+              ["board", "Board", Columns3],
+            ] as const
+          ).map(([id, label, Icon]) => (
+            <Button
+              key={id}
+              variant="ghost"
+              size="sm"
+              aria-pressed={view === id}
+              className={cn("rounded-none first:rounded-l-md last:rounded-r-md", view === id && "bg-muted")}
+              onClick={() => chooseView(id)}
+            >
+              <Icon /> {label}
+            </Button>
+          ))}
         </div>
         <Button
           variant={adding ? "ghost" : "default"}
@@ -80,6 +111,8 @@ const ApplicationsPage = () => {
           No applications yet. Add one here, or save one from the Resume page after generating a
           resume.
         </p>
+      ) : view === "board" ? (
+        <ApplicationsBoard applications={applications.data} />
       ) : (
         <ApplicationsTable applications={applications.data} />
       )}

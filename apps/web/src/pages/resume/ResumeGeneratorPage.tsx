@@ -23,6 +23,8 @@ import { cn } from "../../lib/utils";
 import { writeStored } from "../../lib/storage";
 import { MODELS, type ModelChoice } from "../../utils/models";
 import { getProvider } from "../../utils/providers";
+import { listProviderModels, mergeModelOptions, type ModelOption } from "../../utils/providerModels";
+import { useQuery } from "@tanstack/react-query";
 import {
   KEY_CHOICE_STORAGE,
   modelChoiceStorage,
@@ -130,13 +132,25 @@ interface AIPickerProps {
   keys: ApiKeyRecord[];
   activeKey: ApiKeyRecord;
   model: ModelChoice;
+  modelOptions: ModelOption[];
+  // Set when the account's own model list couldn't be loaded
+  modelsNote?: string;
   onKeyChange: (id: number) => void;
   onModelChange: (model: ModelChoice) => void;
   disabled: boolean;
 }
 
 // Key and model dropdowns; the model list follows the key's provider
-const AIPicker = ({ keys, activeKey, model, onKeyChange, onModelChange, disabled }: AIPickerProps) => (
+const AIPicker = ({
+  keys,
+  activeKey,
+  model,
+  modelOptions,
+  modelsNote,
+  onKeyChange,
+  onModelChange,
+  disabled,
+}: AIPickerProps) => (
   <div className="grid gap-4 sm:grid-cols-2">
     <SelectField
       label="AI key"
@@ -152,12 +166,13 @@ const AIPicker = ({ keys, activeKey, model, onKeyChange, onModelChange, disabled
       label="Model"
       options={[
         { value: "auto", label: "Auto (fast for analysis, stronger for the summary)" },
-        ...MODELS[activeKey.provider].options.map((m) => ({ value: m.id, label: m.label })),
+        ...modelOptions.map((m) => ({ value: m.id, label: m.label })),
       ]}
       value={model}
       onChange={(event) => onModelChange(event.target.value)}
       disabled={disabled}
     />
+    {modelsNote && <p className="text-xs text-muted-foreground sm:col-span-2">{modelsNote}</p>}
   </div>
 );
 
@@ -185,12 +200,20 @@ const ResumeGenerator = ({ resume, keys, fromJob }: ResumeGeneratorProps) => {
   const [skillsData, setSkillsData] = useState(resume.featuredSkills);
 
   const activeKey = pickKey(keys, selectedKeyId);
+  // The models this key can use, from the provider; the curated list until (or unless) it loads
+  const accountModels = useQuery({
+    queryKey: ["providerModels", activeKey?.id, activeKey?.provider],
+    queryFn: () => listProviderModels(activeKey!.provider, activeKey!.key),
+    enabled: !!activeKey,
+    staleTime: 60 * 60 * 1000,
+    retry: false,
+  });
+  const modelOptions = activeKey
+    ? mergeModelOptions(MODELS[activeKey.provider].options, accountModels.data)
+    : [];
   const storedModel = activeKey ? modelChoices[activeKey.provider] : "auto";
   // A remembered model that is no longer offered falls back to auto
-  const model: ModelChoice =
-    activeKey && MODELS[activeKey.provider].options.some((m) => m.id === storedModel)
-      ? storedModel
-      : "auto";
+  const model: ModelChoice = modelOptions.some((m) => m.id === storedModel) ? storedModel : "auto";
   const isBusy = isJudgementLoading || isPdfLoading;
 
   const onKeyChange = (id: number) => {
@@ -221,6 +244,10 @@ const ResumeGenerator = ({ resume, keys, fromJob }: ResumeGeneratorProps) => {
       keys={keys}
       activeKey={activeKey}
       model={model}
+      modelOptions={modelOptions}
+      modelsNote={
+        accountModels.isError ? "Couldn't load your account's model list; showing the defaults." : undefined
+      }
       onKeyChange={onKeyChange}
       onModelChange={onModelChange}
       disabled={isBusy}

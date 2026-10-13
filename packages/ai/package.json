@@ -1,0 +1,29 @@
+{
+  "name": "@resume-builder/ai",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./providers": "./src/providers.ts",
+    "./models": "./src/models.ts",
+    "./model": "./src/aiModel.ts",
+    "./judge": "./src/AIResumeJudge.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.78",
+    "@ai-sdk/google": "^4.0.93",
+    "@ai-sdk/openai": "^4.0.91",
+    "@resume-builder/shared": "workspace:*",
+    "ai": "^7.0.137",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3",
+    "vitest": "^5.0.3"
+  }
+}

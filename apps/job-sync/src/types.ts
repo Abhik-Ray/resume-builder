@@ -1,4 +1,6 @@
-export type SourceName = "adzuna" | "jooble" | "jsearch";
+export type SearchSourceName = "adzuna" | "jooble" | "jsearch";
+export type BoardProvider = "greenhouse" | "lever";
+export type SourceName = SearchSourceName | BoardProvider;
 
 // A posting as every source returns it
 export interface NormalizedJob {
@@ -26,8 +28,22 @@ export interface SearchQuery {
 }
 
 export interface JobSource {
-  name: SourceName;
+  name: SearchSourceName;
   searchJobs(query: SearchQuery): Promise<NormalizedJob[]>;
+}
+
+// A company's public job board (the optional watch list): every open posting, no query
+export interface BoardSource {
+  name: BoardProvider;
+  listJobs(board: string): Promise<NormalizedJob[]>;
+}
+
+// A board and the users watching it
+export interface WatchedBoard {
+  provider: BoardProvider;
+  board: string;
+  name: string;
+  userIds: string[];
 }
 
 // A user's active saved search with its location resolved from the profile

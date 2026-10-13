@@ -6,7 +6,12 @@ export type JobRow = Tables["jobs"]["Row"];
 export type JobMatchRow = Tables["job_matches"]["Row"];
 export type SearchProfileRow = Tables["search_profiles"]["Row"];
 export type SyncRunRow = Tables["sync_runs"]["Row"];
+export type WatchedCompanyRow = Tables["watched_companies"]["Row"];
 export type MatchState = Database["public"]["Enums"]["match_state"];
+
+// The text a job is judged on, the same in the browser and in the job sync
+export const jobPostingText = (job: Pick<JobRow, "title" | "company" | "location" | "description">) =>
+  `${job.title} at ${job.company}\n${job.location ?? ""}\n\n${job.description ?? ""}`;
 
 export const MATCH_STATES = ["new", "saved", "dismissed", "applied"] as const satisfies readonly MatchState[];
 
@@ -77,3 +82,55 @@ export const toSearchProfileColumns = (input: SearchProfileInput) => ({
   min_score: input.minScore,
   active: input.active,
 });
+
+export const BOARD_PROVIDERS = ["greenhouse", "lever"] as const;
+export type BoardProvider = (typeof BOARD_PROVIDERS)[number];
+
+export const BOARD_PROVIDER_LABELS: Record<BoardProvider, string> = {
+  greenhouse: "Greenhouse",
+  lever: "Lever",
+};
+
+const BOARD_TOKEN = /^[a-z0-9][a-z0-9-]{0,99}$/;
+
+// A board URL (boards.greenhouse.io/acme, job-boards.greenhouse.io/acme, jobs.lever.co/acme)
+// or a bare token → { provider, board }. null when it isn't one.
+export const parseBoard = (
+  value: string,
+  fallbackProvider: BoardProvider,
+): { provider: BoardProvider; board: string } | null => {
+  // No URL class here: the package has neither DOM nor Node types
+  const [host = "", ...path] = value
+    .trim()
+    .toLowerCase()
+    .replace(/^[a-z]+:\/\//, "")
+    .split(/[/?#]/)
+    .filter(Boolean);
+  let provider = fallbackProvider;
+  if (/(^|\.)greenhouse\.io$/.test(host)) provider = "greenhouse";
+  else if (/(^|\.)lever\.co$/.test(host)) provider = "lever";
+  // A bare token has no dot and no path
+  const token = host.includes(".") ? (path[0] ?? "") : host;
+  return BOARD_TOKEN.test(token) && (host.includes(".") || path.length === 0)
+    ? { provider, board: token }
+    : null;
+};
+
+// The watch-list form; the board field takes a token or the board's URL
+export const watchedCompanySchema = z
+  .object({
+    name: z.string().trim().min(1, "Company name is required").max(100, "At most 100 characters"),
+    provider: z.enum(BOARD_PROVIDERS),
+    board: z.string().trim().min(1, "Board is required"),
+  })
+  .transform((value, ctx) => {
+    const parsed = parseBoard(value.board, value.provider);
+    if (!parsed) {
+      ctx.addIssue({ code: "custom", path: ["board"], message: "Use the board's URL or its name, e.g. acme" });
+      return z.NEVER;
+    }
+    return { name: value.name, ...parsed };
+  });
+
+export type WatchedCompanyFormValues = z.input<typeof watchedCompanySchema>;
+export type WatchedCompanyInput = z.output<typeof watchedCompanySchema>;

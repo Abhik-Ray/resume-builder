@@ -2,6 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import adzunaFixture from "../fixtures/adzuna.json";
 import joobleFixture from "../fixtures/jooble.json";
 import jsearchFixture from "../fixtures/jsearch.json";
+import greenhouseFixture from "../fixtures/greenhouse.json";
+import leverFixture from "../fixtures/lever.json";
+import { greenhouseSource } from "./greenhouse";
+import { leverSource } from "./lever";
 import { SourceError, USER_AGENT, type SearchQuery } from "../types";
 import { adzunaSource } from "./adzuna";
 import { configuredSources } from ".";
@@ -169,6 +173,50 @@ describe("configuredSources", () => {
     expect(configuredSources({ ADZUNA_APP_ID: "a", ADZUNA_APP_KEY: "b", RAPIDAPI_KEY: "c" }).map((s) => s.name)).toEqual([
       "adzuna",
       "jsearch",
+    ]);
+  });
+});
+
+describe("Greenhouse", () => {
+  it("lists a board's postings with plain-text descriptions", async () => {
+    const fetchFn = respond(greenhouseFixture);
+    const jobs = await greenhouseSource(fetchFn).listJobs("acme");
+    expect(calledUrl(fetchFn).href).toBe("https://boards-api.greenhouse.io/v1/boards/acme/jobs?content=true");
+    expect(jobs).toEqual([
+      {
+        source: "greenhouse",
+        externalId: "acme:4012345",
+        company: "Acme",
+        title: "Senior Frontend Engineer (React)",
+        location: "Bengaluru, India",
+        remote: false,
+        url: "https://boards.greenhouse.io/acme/jobs/4012345",
+        description: "We build with React & TypeScript.",
+        postedAt: "2026-10-01T09:00:00-04:00",
+      },
+      expect.objectContaining({ externalId: "acme:4012346", company: "acme", remote: true, description: null }),
+    ]);
+  });
+});
+
+describe("Lever", () => {
+  it("lists a company's postings", async () => {
+    const fetchFn = respond(leverFixture);
+    const jobs = await leverSource(fetchFn).listJobs("globex");
+    expect(calledUrl(fetchFn).href).toBe("https://api.lever.co/v0/postings/globex?mode=json");
+    expect(jobs).toEqual([
+      {
+        source: "lever",
+        externalId: "globex:a1b2c3d4-0000-4000-8000-000000000001",
+        company: "globex",
+        title: "React Developer",
+        location: "Pune / Mumbai",
+        remote: false,
+        url: "https://jobs.lever.co/globex/a1b2c3d4-0000-4000-8000-000000000001",
+        description: "Join us to build React apps in TypeScript.",
+        postedAt: new Date(1791158400000).toISOString(),
+      },
+      expect.objectContaining({ title: "Backend Engineer", remote: true, location: null, postedAt: null }),
     ]);
   });
 });

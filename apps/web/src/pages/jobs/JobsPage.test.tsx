@@ -74,6 +74,17 @@ describe("JobsPage", () => {
     expect(within(card("Frontend Engineer at Globex")).getByText(/Globex · Remote ·/)).toBeInTheDocument();
   });
 
+  it("flags postings that are no longer listed", async () => {
+    seedJobs();
+    fakeSupabase.seed("jobs", [
+      { id: "j1", source: "adzuna", external_id: "1", company: "Acme", title: "React Developer", url: "https://jobs.example/1", closed_at: "2026-10-01T00:00:00Z" },
+    ]);
+    await setup();
+    const acme = await screen.findByRole("listitem", { name: "React Developer at Acme" });
+    expect(within(acme).getByText(/No longer listed since .*it may be closed/)).toBeInTheDocument();
+    expect(within(card("Frontend Engineer at Globex")).queryByText(/No longer listed/)).not.toBeInTheDocument();
+  });
+
   it("says when the job search hasn't run", async () => {
     await setup();
     expect(await screen.findByText("The daily job search hasn't run yet.")).toBeInTheDocument();

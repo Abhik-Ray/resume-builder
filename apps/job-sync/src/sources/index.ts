@@ -1,4 +1,6 @@
-import type { JobSource } from "../types";
+import type { BoardSource, JobSource } from "../types";
+import { greenhouseSource } from "./greenhouse";
+import { leverSource } from "./lever";
 import { adzunaSource } from "./adzuna";
 import { joobleSource } from "./jooble";
 import { jsearchSource } from "./jsearch";
@@ -11,3 +13,6 @@ export const configuredSources = (env: NodeJS.ProcessEnv = process.env): JobSour
   if (env.RAPIDAPI_KEY) sources.push(jsearchSource(env.RAPIDAPI_KEY));
   return sources;
 };
+
+// Public company boards need no credentials
+export const boardSources = (): BoardSource[] => [greenhouseSource(), leverSource()];
