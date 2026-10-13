@@ -10,8 +10,10 @@ import { generateResumeSection } from "../../utils/AIResumeBuilder";
 import { getTweakableBullets, toUserData } from "../../data/ResumeData";
 import { resumeFromProfile } from "../../db/resumeData";
 import { useProfile } from "../../db/profile";
-import { missingDetails } from "@resume-builder/shared";
+import { missingDetails, type ResumeSnapshot } from "@resume-builder/shared";
 import { DETAILS_PATH } from "../../auth/RequireAuth";
+import { useCreateApplication } from "../../db/applications";
+import { ApplicationForm } from "../applications/ApplicationForm";
 import { useApiKeys } from "../../db/apiKeys";
 import type { ApiKeyRecord } from "../../db/db";
 import type { ResumeDataType } from "../../types/input";
@@ -379,17 +381,70 @@ const ResumeGenerator = ({ resume, keys }: ResumeGeneratorProps) => {
         ))}
 
       {step === 2 && (
-        <div className="h-[calc(100vh-12rem)] min-h-96 overflow-hidden rounded-lg border">
-          <Suspense fallback={<Spinner />}>
-            <ResumePreview
-              resume={resume}
-              summaryData={summaryData}
-              mainExperienceData={experienceData}
-              skillsData={skillsData}
-            />
-          </Suspense>
-        </div>
+        <>
+          <div className="h-[calc(100vh-12rem)] min-h-96 overflow-hidden rounded-lg border">
+            <Suspense fallback={<Spinner />}>
+              <ResumePreview
+                resume={resume}
+                summaryData={summaryData}
+                mainExperienceData={experienceData}
+                skillsData={skillsData}
+              />
+            </Suspense>
+          </div>
+          <SaveAsApplication
+            jobDescription={jobDescription}
+            snapshot={{
+              resume,
+              summary: summaryData,
+              skills: skillsData,
+              experienceBullets: experienceData,
+            }}
+          />
+        </>
       )}
     </>
+  );
+};
+
+// Saves the job with the exact resume generated for it, for the tracker
+const SaveAsApplication = ({
+  jobDescription,
+  snapshot,
+}: {
+  jobDescription: string;
+  snapshot: ResumeSnapshot;
+}) => {
+  const createApplication = useCreateApplication();
+  const [saved, setSaved] = useState(false);
+
+  if (saved) {
+    return (
+      <p role="status" className="rounded-lg border p-4 text-sm">
+        Saved to your{" "}
+        <Link to="/applications" className="font-medium underline">
+          applications
+        </Link>
+        .
+      </p>
+    );
+  }
+
+  return (
+    <section aria-label="Save as application" className="flex flex-col gap-3 rounded-lg border p-4">
+      <div>
+        <h2 className="text-base font-semibold">Save as application</h2>
+        <p className="text-xs text-muted-foreground">
+          Keeps the job description and this exact resume with the application.
+        </p>
+      </div>
+      <ApplicationForm
+        submitLabel="Save as application"
+        onSubmit={async (values) => {
+          await createApplication.mutateAsync({ ...values, jdText: jobDescription, resumeSnapshot: snapshot });
+          setSaved(true);
+        }}
+      />
+    </section>
   );
 };

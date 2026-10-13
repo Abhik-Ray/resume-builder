@@ -38,6 +38,39 @@ const defaults: Record<string, () => Row> = {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }),
+  applications: () => ({
+    user_id: session?.user.id,
+    job_id: null,
+    url: null,
+    jd_text: null,
+    resume_snapshot: null,
+    status: "saved",
+    applied_at: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }),
+};
+
+// Foreign keys declared on delete cascade: parent table -> [child table, column]
+const cascades: Record<string, [string, string][]> = {
+  applications: [["application_events", "application_id"]],
+};
+
+// The database triggers the app relies on, run after each insert or update
+const triggers: Record<string, (row: Row, previous: Row | undefined) => void> = {
+  applications(row, previous) {
+    if (row.applied_at == null && row.status !== "saved") row.applied_at = new Date().toISOString();
+    if (previous && previous.status === row.status) return;
+    table("application_events").push({
+      id: table("application_events").length + 1,
+      application_id: row.id,
+      user_id: row.user_id,
+      from_status: previous ? previous.status : null,
+      to_status: row.status,
+      at: new Date().toISOString(),
+      note: null,
+    });
+  },
 };
 
 const makeSession = (user = TEST_USER): Session =>
@@ -167,11 +200,14 @@ class Query implements PromiseLike<Result> {
             return { data: null, error: new FakePostgrestError("duplicate key value", "23505") };
           }
           if (existing) {
+            const previous = { ...existing };
             Object.assign(existing, input);
+            triggers[this.name]?.(existing, previous);
             result.push(existing);
           } else {
             const row = { id: crypto.randomUUID(), ...defaults[this.name]?.(), ...input };
             rows.push(row);
+            triggers[this.name]?.(row, undefined);
             result.push(row);
           }
         }
@@ -179,11 +215,20 @@ class Query implements PromiseLike<Result> {
       }
       case "update":
         result = matches();
-        result.forEach((row) => Object.assign(row, this.payload, { updated_at: new Date().toISOString() }));
+        result.forEach((row) => {
+          const previous = { ...row };
+          Object.assign(row, this.payload, { updated_at: new Date().toISOString() });
+          triggers[this.name]?.(row, previous);
+        });
         break;
       case "delete":
         result = matches();
         tables.set(this.name, rows.filter((row) => !result.includes(row)));
+        // on delete cascade
+        for (const [child, column] of cascades[this.name] ?? []) {
+          const ids = result.map((row) => row.id);
+          tables.set(child, table(child).filter((row) => !ids.includes(row[column])));
+        }
         break;
     }
 

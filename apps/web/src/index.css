@@ -52,6 +52,9 @@
     --chart-3: oklch(0.546 0.245 262.881);
     --chart-4: oklch(0.488 0.243 264.376);
     --chart-5: oklch(0.424 0.199 265.638);
+    /* Stats charts: one validated series hue per mode (see the dataviz skill) */
+    --viz-series: #2a78d6;
+    --viz-grid: oklch(0.922 0 0);
     --radius: 0.625rem;
     --sidebar: oklch(0.985 0 0);
     --sidebar-foreground: oklch(0.145 0 0);
@@ -87,6 +90,8 @@
     --chart-3: oklch(0.546 0.245 262.881);
     --chart-4: oklch(0.488 0.243 264.376);
     --chart-5: oklch(0.424 0.199 265.638);
+    --viz-series: #3987e5;
+    --viz-grid: oklch(1 0 0 / 12%);
     --sidebar: oklch(0.205 0 0);
     --sidebar-foreground: oklch(0.985 0 0);
     --sidebar-primary: oklch(0.488 0.243 264.376);
@@ -112,6 +117,8 @@
     --color-chart-3: var(--chart-3);
     --color-chart-2: var(--chart-2);
     --color-chart-1: var(--chart-1);
+    --color-viz-series: var(--viz-series);
+    --color-viz-grid: var(--viz-grid);
     --color-ring: var(--ring);
     --color-input: var(--input);
     --color-border: var(--border);

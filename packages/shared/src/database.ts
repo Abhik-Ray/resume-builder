@@ -5,7 +5,41 @@ export type Database = {
   
   "public": {
           Tables: {
-            "profiles": {
+            "application_events": {
+                  Row: {
+                    "application_id": string,"at": string,"from_status": Database["public"]['Enums']["application_status"] | null,"id": number,"note": string | null,"to_status": Database["public"]['Enums']["application_status"],"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "application_id": string,"at"?: string,"from_status"?: Database["public"]['Enums']["application_status"] | null,"id"?: never,"note"?: string | null,"to_status": Database["public"]['Enums']["application_status"],"user_id": string
+                  }
+                  Update: {
+                    "application_id"?: string,"at"?: string,"from_status"?: Database["public"]['Enums']["application_status"] | null,"id"?: never,"note"?: string | null,"to_status"?: Database["public"]['Enums']["application_status"],"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "application_events_application_id_fkey"
+      columns: ["application_id"]
+isOneToOne: false
+      referencedRelation: "applications"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"applications": {
+                  Row: {
+                    "applied_at": string | null,"company": string,"created_at": string,"id": string,"jd_text": string | null,"job_id": string | null,"resume_snapshot": Json | null,"status": Database["public"]['Enums']["application_status"],"title": string,"updated_at": string,"url": string | null,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "applied_at"?: string | null,"company": string,"created_at"?: string,"id"?: string,"jd_text"?: string | null,"job_id"?: string | null,"resume_snapshot"?: Json | null,"status"?: Database["public"]['Enums']["application_status"],"title": string,"updated_at"?: string,"url"?: string | null,"user_id"?: string
+                  }
+                  Update: {
+                    "applied_at"?: string | null,"company"?: string,"created_at"?: string,"id"?: string,"jd_text"?: string | null,"job_id"?: string | null,"resume_snapshot"?: Json | null,"status"?: Database["public"]['Enums']["application_status"],"title"?: string,"updated_at"?: string,"url"?: string | null,"user_id"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"profiles": {
                   Row: {
                     "created_at": string,"details_completed_at": string | null,"home_city": string | null,"home_country": string | null,"home_region": string | null,"include_remote": boolean,"resume_data": Json | null,"search_radius_km": number,"updated_at": string,"user_id": string
                   }
@@ -22,13 +56,45 @@ export type Database = {
                 }
           }
           Views: {
-            [_ in never]: never
+            "application_funnel": {
+                  Row: {
+                    "applications": number | null,"position": number | null,"status": Database["public"]['Enums']["application_status"] | null
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    
+                  ]
+                },"applications_weekly": {
+                  Row: {
+                    "applications": number | null,"week": string | null
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    
+                  ]
+                },"response_stats": {
+                  Row: {
+                    "applied": number | null,"median_days_to_response": number | null,"responded": number | null,"response_rate": number | null
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    
+                  ]
+                },"status_transitions": {
+                  Row: {
+                    "from_status": Database["public"]['Enums']["application_status"] | null,"to_status": Database["public"]['Enums']["application_status"] | null,"transitions": number | null
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    
+                  ]
+                }
           }
           Functions: {
             [_ in never]: never
           }
           Enums: {
-            [_ in never]: never
+            "application_status": "saved"|"applied"|"screening"|"interview"|"offer"|"accepted"|"rejected"|"withdrawn"|"ghosted"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -144,7 +210,7 @@ export type CompositeTypes<
 export const Constants = {
   "public": {
           Enums: {
-            
+            "application_status": ["saved", "applied", "screening", "interview", "offer", "accepted", "rejected", "withdrawn", "ghosted"]
           }
         }
 } as const

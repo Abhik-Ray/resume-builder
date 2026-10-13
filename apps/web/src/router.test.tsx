@@ -32,6 +32,16 @@ describe("routes", () => {
     expect(await screen.findByLabelText("Job description", undefined, LAZY)).toBeInTheDocument();
   });
 
+  it("shows the applications page at /applications", async () => {
+    renderAt("/applications");
+    expect(await screen.findByRole("heading", { name: "Applications" }, LAZY)).toBeInTheDocument();
+  });
+
+  it("shows the stats page at /stats", async () => {
+    renderAt("/stats");
+    expect(await screen.findByRole("heading", { name: "Stats" }, LAZY)).toBeInTheDocument();
+  });
+
   it("shows the settings tiles at /settings", async () => {
     renderAt("/settings");
     expect(await screen.findByRole("heading", { name: "Settings" }, LAZY)).toBeInTheDocument();
