@@ -2,6 +2,7 @@ import {
   BarChart3,
   Briefcase,
   FileText,
+  Inbox,
   LayoutDashboard,
   Loader2,
   LogOut,
@@ -15,6 +16,7 @@ import { cn } from "../lib/utils";
 
 const NAV_ITEMS = [
   { to: "/", label: "Home", icon: LayoutDashboard, end: true },
+  { to: "/jobs", label: "Jobs", icon: Inbox, end: false },
   { to: "/resume", label: "Resume", icon: FileText, end: false },
   { to: "/applications", label: "Applications", icon: Briefcase, end: false },
   { to: "/stats", label: "Stats", icon: BarChart3, end: false },

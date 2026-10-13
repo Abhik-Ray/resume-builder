@@ -22,6 +22,12 @@ export default defineConfig([
     },
   },
   {
+    files: ['apps/job-sync/**/*.ts'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
+  {
     // Fast Refresh rules don't apply to tests and test helpers
     files: ['apps/web/src/**/*.test.{ts,tsx}', 'apps/web/src/test/**'],
     rules: {

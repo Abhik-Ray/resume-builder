@@ -34,6 +34,10 @@ pnpm dev
 
 Database changes are SQL migrations in `supabase/migrations`, with pgTAP tests in `supabase/tests/database` (`pnpm supabase test db`). After changing the schema, run `pnpm db:types`.
 
+## Daily job search
+
+`apps/job-sync` runs every morning from GitHub Actions (`.github/workflows/job-sync.yml`). It queries Adzuna, Jooble and JSearch with each user's saved searches (Settings → Job searches) near their home location, stores the postings and matches them by keywords. New matches appear on the Jobs page, where they are judged with your own AI key in the browser. Run it locally with `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and at least one source key set: `pnpm --filter @resume-builder/job-sync start`.
+
 ## Customising your data
 
 All personal content lives in one file, `apps/web/src/data/ResumeData.ts`:

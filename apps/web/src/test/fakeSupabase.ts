@@ -24,7 +24,10 @@ const failures = new Map<string, string>();
 const listeners = new Set<AuthListener>();
 let session: Session | null = null;
 // Columns that identify a table's rows for upserts
-const primaryKeys: Record<string, string[]> = { profiles: ["user_id"] };
+const primaryKeys: Record<string, string[]> = {
+  profiles: ["user_id"],
+  job_matches: ["user_id", "job_id"],
+};
 // Column defaults applied on insert, mirroring the migrations
 const defaults: Record<string, () => Row> = {
   profiles: () => ({
@@ -35,6 +38,24 @@ const defaults: Record<string, () => Row> = {
     search_radius_km: 50,
     include_remote: true,
     details_completed_at: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }),
+  search_profiles: () => ({
+    user_id: session?.user.id,
+    exclude_keywords: [],
+    location_override: null,
+    remote_only: false,
+    min_score: 3,
+    active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }),
+  job_matches: () => ({
+    search_profile_id: null,
+    keyword_score: 3,
+    verdict: null,
+    state: "new",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }),

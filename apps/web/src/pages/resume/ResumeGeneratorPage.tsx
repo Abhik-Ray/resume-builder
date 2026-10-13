@@ -1,7 +1,7 @@
 import { ArrowLeft, Check, KeyRound, Loader2, RotateCcw, Sparkles } from "lucide-react";
 import { judgeJobPosting, type JudgeResponseType } from "../../utils/AIResumeJudge";
 import { lazy, Suspense, useState } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import { verifyProviderKey } from "../../utils/AIHealthCheck";
 import { JudgeResponse } from "./JudgeResponse";
 import { Button } from "../../components/ui/button";
@@ -14,6 +14,8 @@ import { missingDetails, type ResumeSnapshot } from "@resume-builder/shared";
 import { DETAILS_PATH } from "../../auth/RequireAuth";
 import { useCreateApplication } from "../../db/applications";
 import { ApplicationForm } from "../applications/ApplicationForm";
+import type { JobForResume } from "../jobs/jobForResume";
+import { useUpdateMatch } from "../../db/matches";
 import { useApiKeys } from "../../db/apiKeys";
 import type { ApiKeyRecord } from "../../db/db";
 import type { ResumeDataType } from "../../types/input";
@@ -47,6 +49,8 @@ const Spinner = () => (
 const ResumeGeneratorPage = () => {
   const profile = useProfile();
   const keys = useApiKeys();
+  // Set when the Jobs page sent a match here
+  const fromJob = (useLocation().state as { job?: JobForResume } | null)?.job;
 
   const content = () => {
     if (profile.isError) {
@@ -59,7 +63,15 @@ const ResumeGeneratorPage = () => {
     if (profile.isPending || !keys) return <Spinner />;
     const missing = missingDetails(profile.data);
     if (missing.length > 0) return <FinishDetails missing={missing} />;
-    return <ResumeGenerator resume={resumeFromProfile(profile.data).data} keys={keys} />;
+    return (
+      <ResumeGenerator
+        // A new job starts the flow over
+        key={fromJob?.jobId}
+        resume={resumeFromProfile(profile.data).data}
+        keys={keys}
+        fromJob={fromJob}
+      />
+    );
   };
 
   return (
@@ -152,12 +164,13 @@ const AIPicker = ({ keys, activeKey, model, onKeyChange, onModelChange, disabled
 interface ResumeGeneratorProps {
   resume: ResumeDataType;
   keys: ApiKeyRecord[];
+  fromJob?: JobForResume;
 }
 
-const ResumeGenerator = ({ resume, keys }: ResumeGeneratorProps) => {
+const ResumeGenerator = ({ resume, keys, fromJob }: ResumeGeneratorProps) => {
   const [selectedKeyId, setSelectedKeyId] = useState(readKeyChoice);
   const [modelChoices, setModelChoices] = useState(readModelChoices);
-  const [jobDescription, setJobDescription] = useState("");
+  const [jobDescription, setJobDescription] = useState(fromJob?.description ?? "");
   const [step, setStep] = useState<number>(0);
   const [judgeResponse, setJudgeResponse] = useState<JudgeResponseType>();
   const [stepError, setStepError] = useState<string | null>(null);
@@ -340,6 +353,15 @@ const ResumeGenerator = ({ resume, keys }: ResumeGeneratorProps) => {
           ) : (
             picker
           )}
+          {fromJob && (
+            <p className="text-xs text-muted-foreground">
+              From {fromJob.title} at {fromJob.company}. Job sites often share only a summary:{" "}
+              <a href={fromJob.url} target="_blank" rel="noreferrer" className="underline">
+                open the posting
+              </a>{" "}
+              and paste the full description for a better match.
+            </p>
+          )}
           <TextAreaField
             label="Job description"
             rows={14}
@@ -393,6 +415,7 @@ const ResumeGenerator = ({ resume, keys }: ResumeGeneratorProps) => {
             </Suspense>
           </div>
           <SaveAsApplication
+            fromJob={fromJob}
             jobDescription={jobDescription}
             snapshot={{
               resume,
@@ -409,13 +432,16 @@ const ResumeGenerator = ({ resume, keys }: ResumeGeneratorProps) => {
 
 // Saves the job with the exact resume generated for it, for the tracker
 const SaveAsApplication = ({
+  fromJob,
   jobDescription,
   snapshot,
 }: {
+  fromJob?: JobForResume;
   jobDescription: string;
   snapshot: ResumeSnapshot;
 }) => {
   const createApplication = useCreateApplication();
+  const updateMatch = useUpdateMatch();
   const [saved, setSaved] = useState(false);
 
   if (saved) {
@@ -440,8 +466,19 @@ const SaveAsApplication = ({
       </div>
       <ApplicationForm
         submitLabel="Save as application"
+        defaultValues={
+          fromJob && { company: fromJob.company, title: fromJob.title, url: fromJob.url }
+        }
         onSubmit={async (values) => {
-          await createApplication.mutateAsync({ ...values, jdText: jobDescription, resumeSnapshot: snapshot });
+          await createApplication.mutateAsync({
+            ...values,
+            jdText: jobDescription,
+            resumeSnapshot: snapshot,
+            jobId: fromJob?.jobId,
+          });
+          if (fromJob) {
+            await updateMatch.mutateAsync({ jobId: fromJob.jobId, patch: { state: "applied" } });
+          }
           setSaved(true);
         }}
       />

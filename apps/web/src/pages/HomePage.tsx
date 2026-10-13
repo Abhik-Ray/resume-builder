@@ -4,6 +4,7 @@ import { formatPercent } from "../components/charts/format";
 import { StatTile } from "../components/charts/StatTile";
 import { useApplications } from "../db/applications";
 import { useStats } from "../db/stats";
+import { todaysMatches } from "./stats/weeks";
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
@@ -22,7 +23,11 @@ const HomePage = () => {
           Couldn't load your dashboard: {getErrorMessage(error)}
         </p>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <StatTile
+            label="New job matches today"
+            value={stats.data ? String(todaysMatches(stats.data.matches)) : "…"}
+          />
           <StatTile label="Active applications" value={active === undefined ? "…" : String(active)} />
           <StatTile
             label="Response rate"
@@ -35,7 +40,11 @@ const HomePage = () => {
         </div>
       )}
       <p className="text-sm text-muted-foreground">
-        Track applications on the{" "}
+        Review new matches on the{" "}
+        <Link to="/jobs" className="font-medium text-foreground underline">
+          Jobs
+        </Link>{" "}
+        page, track applications on the{" "}
         <Link to="/applications" className="font-medium text-foreground underline">
           Applications
         </Link>{" "}

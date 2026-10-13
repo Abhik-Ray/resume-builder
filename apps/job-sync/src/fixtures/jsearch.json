@@ -1,0 +1,32 @@
+{
+  "status": "OK",
+  "request_id": "fixture",
+  "parameters": { "query": "react developer in Bengaluru", "page": 1, "num_pages": 1 },
+  "data": [
+    {
+      "job_id": "aBcD123==",
+      "job_title": "React Developer",
+      "employer_name": "Initech",
+      "job_apply_link": "https://careers.initech.example/jobs/1",
+      "job_description": "We use React, TypeScript and GraphQL.",
+      "job_is_remote": false,
+      "job_posted_at_datetime_utc": "2026-10-12T03:00:00.000Z",
+      "job_city": "Bengaluru",
+      "job_state": "Karnataka",
+      "job_country": "IN",
+      "job_employment_type": "FULLTIME"
+    },
+    {
+      "job_id": "eFgH456==",
+      "job_title": "Staff Frontend Engineer",
+      "employer_name": null,
+      "job_apply_link": "https://careers.example/2",
+      "job_description": null,
+      "job_is_remote": true,
+      "job_posted_at_datetime_utc": null,
+      "job_city": null,
+      "job_state": null,
+      "job_country": "IN"
+    }
+  ]
+}
