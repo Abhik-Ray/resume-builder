@@ -37,6 +37,52 @@ isOneToOne: false
                     "applied_at"?: string | null,"company"?: string,"created_at"?: string,"id"?: string,"jd_text"?: string | null,"job_id"?: string | null,"resume_snapshot"?: Json | null,"status"?: Database["public"]['Enums']["application_status"],"title"?: string,"updated_at"?: string,"url"?: string | null,"user_id"?: string
                   }
                   Relationships: [
+                    {
+      foreignKeyName: "applications_job_id_fkey"
+      columns: ["job_id"]
+isOneToOne: false
+      referencedRelation: "jobs"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"job_matches": {
+                  Row: {
+                    "created_at": string,"job_id": string,"keyword_score": number,"search_profile_id": string | null,"state": Database["public"]['Enums']["match_state"],"updated_at": string,"user_id": string,"verdict": Json | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"job_id": string,"keyword_score": number,"search_profile_id"?: string | null,"state"?: Database["public"]['Enums']["match_state"],"updated_at"?: string,"user_id": string,"verdict"?: Json | null
+                  }
+                  Update: {
+                    "created_at"?: string,"job_id"?: string,"keyword_score"?: number,"search_profile_id"?: string | null,"state"?: Database["public"]['Enums']["match_state"],"updated_at"?: string,"user_id"?: string,"verdict"?: Json | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "job_matches_job_id_fkey"
+      columns: ["job_id"]
+isOneToOne: false
+      referencedRelation: "jobs"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "job_matches_search_profile_id_fkey"
+      columns: ["search_profile_id"]
+isOneToOne: false
+      referencedRelation: "search_profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"jobs": {
+                  Row: {
+                    "company": string,"description": string | null,"external_id": string,"first_seen_at": string,"id": string,"last_seen_at": string,"location": string | null,"posted_at": string | null,"remote": boolean,"source": string,"title": string,"url": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "company": string,"description"?: string | null,"external_id": string,"first_seen_at"?: string,"id"?: string,"last_seen_at"?: string,"location"?: string | null,"posted_at"?: string | null,"remote"?: boolean,"source": string,"title": string,"url": string
+                  }
+                  Update: {
+                    "company"?: string,"description"?: string | null,"external_id"?: string,"first_seen_at"?: string,"id"?: string,"last_seen_at"?: string,"location"?: string | null,"posted_at"?: string | null,"remote"?: boolean,"source"?: string,"title"?: string,"url"?: string
+                  }
+                  Relationships: [
                     
                   ]
                 },"profiles": {
@@ -49,6 +95,34 @@ isOneToOne: false
                   }
                   Update: {
                     "created_at"?: string,"details_completed_at"?: string | null,"home_city"?: string | null,"home_country"?: string | null,"home_region"?: string | null,"include_remote"?: boolean,"resume_data"?: Json | null,"search_radius_km"?: number,"updated_at"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"search_profiles": {
+                  Row: {
+                    "active": boolean,"created_at": string,"exclude_keywords": (string)[],"id": string,"keywords": (string)[],"location_override": string | null,"min_score": number,"name": string,"remote_only": boolean,"updated_at": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "active"?: boolean,"created_at"?: string,"exclude_keywords"?: (string)[],"id"?: string,"keywords": (string)[],"location_override"?: string | null,"min_score"?: number,"name": string,"remote_only"?: boolean,"updated_at"?: string,"user_id"?: string
+                  }
+                  Update: {
+                    "active"?: boolean,"created_at"?: string,"exclude_keywords"?: (string)[],"id"?: string,"keywords"?: (string)[],"location_override"?: string | null,"min_score"?: number,"name"?: string,"remote_only"?: boolean,"updated_at"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"sync_runs": {
+                  Row: {
+                    "errors": NonNullable<Json>,"finished_at": string | null,"id": number,"jobs_new": number,"jobs_seen": number,"matches_new": number,"started_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "errors"?: NonNullable<Json>,"finished_at"?: string | null,"id"?: never,"jobs_new"?: number,"jobs_seen"?: number,"matches_new"?: number,"started_at"?: string
+                  }
+                  Update: {
+                    "errors"?: NonNullable<Json>,"finished_at"?: string | null,"id"?: never,"jobs_new"?: number,"jobs_seen"?: number,"matches_new"?: number,"started_at"?: string
                   }
                   Relationships: [
                     
@@ -67,6 +141,14 @@ isOneToOne: false
                 },"applications_weekly": {
                   Row: {
                     "applications": number | null,"week": string | null
+                  }
+                  ComputedFields: never
+                  Relationships: [
+                    
+                  ]
+                },"match_stats": {
+                  Row: {
+                    "day": string | null,"dismissed": number | null,"judged": number | null,"new_matches": number | null
                   }
                   ComputedFields: never
                   Relationships: [
@@ -94,7 +176,7 @@ isOneToOne: false
             [_ in never]: never
           }
           Enums: {
-            "application_status": "saved"|"applied"|"screening"|"interview"|"offer"|"accepted"|"rejected"|"withdrawn"|"ghosted"
+            "application_status": "saved"|"applied"|"screening"|"interview"|"offer"|"accepted"|"rejected"|"withdrawn"|"ghosted","match_state": "new"|"saved"|"dismissed"|"applied"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -210,7 +292,7 @@ export type CompositeTypes<
 export const Constants = {
   "public": {
           Enums: {
-            "application_status": ["saved", "applied", "screening", "interview", "offer", "accepted", "rejected", "withdrawn", "ghosted"]
+            "application_status": ["saved", "applied", "screening", "interview", "offer", "accepted", "rejected", "withdrawn", "ghosted"],"match_state": ["new", "saved", "dismissed", "applied"]
           }
         }
 } as const

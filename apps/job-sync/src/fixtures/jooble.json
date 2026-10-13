@@ -1,0 +1,29 @@
+{
+  "totalCount": 2,
+  "jobs": [
+    {
+      "title": "React.js Developer",
+      "location": "Bengaluru, Karnataka",
+      "snippet": "&nbsp;...looking for a <b>React</b> developer with Redux experience...&nbsp;",
+      "salary": "",
+      "source": "naukri.com",
+      "type": "Full-time",
+      "link": "https://jooble.org/desc/-123456789",
+      "company": "Globex",
+      "updated": "2026-10-12T00:00:00.0000000",
+      "id": -123456789
+    },
+    {
+      "title": "UI Engineer",
+      "location": "",
+      "snippet": "Work from home, React and CSS",
+      "salary": "",
+      "source": "linkedin.com",
+      "type": "",
+      "link": "https://jooble.org/desc/987654321",
+      "company": "",
+      "updated": "2026-10-10T00:00:00.0000000",
+      "id": 987654321
+    }
+  ]
+}

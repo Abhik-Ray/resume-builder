@@ -14,6 +14,8 @@ const SettingsLayout = lazy(() => import("./pages/settings/SettingsLayout"));
 const SettingsHome = lazy(() => import("./pages/settings/SettingsHome"));
 const ApiKeysSection = lazy(() => import("./pages/settings/ApiKeysSection"));
 const ResumeDataSection = lazy(() => import("./pages/settings/ResumeDataSection"));
+const JobSearchesSection = lazy(() => import("./pages/settings/JobSearchesSection"));
+const JobsPage = lazy(() => import("./pages/jobs/JobsPage"));
 const AppearanceSection = lazy(() => import("./pages/settings/AppearanceSection"));
 
 // Exported separately so tests can mount them in a memory router
@@ -40,6 +42,7 @@ export const routes: RouteObject[] = [
         children: [
           { index: true, element: <HomePage /> },
           { path: "resume", element: <ResumeGeneratorPage /> },
+          { path: "jobs", element: <JobsPage /> },
           { path: "applications", element: <ApplicationsPage /> },
           { path: "stats", element: <StatsPage /> },
           {
@@ -50,6 +53,7 @@ export const routes: RouteObject[] = [
               { index: true, element: <SettingsHome /> },
               { path: "api-keys", element: <ApiKeysSection /> },
               { path: "resume-data", element: <ResumeDataSection /> },
+              { path: "searches", element: <JobSearchesSection /> },
               { path: "appearance", element: <AppearanceSection /> },
               { path: "*", element: <Navigate to="/settings" replace /> },
             ],

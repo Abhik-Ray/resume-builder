@@ -1,4 +1,4 @@
-import { FileUser, KeyRound, Palette, type LucideIcon } from "lucide-react";
+import { FileUser, KeyRound, Palette, Search, type LucideIcon } from "lucide-react";
 
 export interface SettingsSection {
   // Route segment under /settings; add the matching route in router.tsx
@@ -20,6 +20,12 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     title: "Resume Data",
     description: "Edit your profile, experience, skills and job preferences.",
     icon: FileUser,
+  },
+  {
+    id: "searches",
+    title: "Job Searches",
+    description: "Keywords the daily job search looks for near your home location.",
+    icon: Search,
   },
   {
     id: "appearance",

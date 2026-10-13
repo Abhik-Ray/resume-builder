@@ -10,6 +10,7 @@ import {
   renderWithRouter,
   resetDb,
   seedProfile,
+  TEST_USER,
 } from "../../test/utils";
 import type { JudgeResponseType } from "../../utils/AIResumeJudge";
 import { MODELS } from "../../utils/models";
@@ -373,6 +374,39 @@ describe("ResumeGeneratorPage", () => {
           experienceBullets: ["Generated bullet"],
         },
       });
+    });
+  });
+
+  describe("from a job match", () => {
+    const job = {
+      jobId: "j1",
+      title: "React Developer",
+      company: "Acme",
+      url: "https://jobs.example/1",
+      description: "React and TypeScript role",
+    };
+
+    it("fills in the job and links the saved application to the match", async () => {
+      fakeSupabase.seed("job_matches", [{ user_id: TEST_USER.id, job_id: "j1" }]);
+      await addApiKey({ label: "Main", provider: "gemini", key: GEMINI_KEY });
+      const user = userEvent.setup();
+      const { router } = renderWithRouter(<ResumeGeneratorPage />, { path: "/resume" });
+      await router.navigate("/resume", { state: { job } });
+
+      expect(await screen.findByLabelText("Job description")).toHaveValue("React and TypeScript role");
+      expect(screen.getByRole("link", { name: "open the posting" })).toHaveAttribute("href", job.url);
+      await user.click(screen.getByRole("button", { name: "Review job" }));
+      await user.click(await screen.findByRole("button", { name: "Generate resume" }));
+      await screen.findByTestId("preview");
+
+      const form = screen.getByRole("region", { name: "Save as application" });
+      expect(within(form).getByLabelText("Company")).toHaveValue("Acme");
+      expect(within(form).getByLabelText("Job title")).toHaveValue("React Developer");
+      await user.click(within(form).getByRole("button", { name: "Save as application" }));
+
+      expect(await screen.findByRole("link", { name: "applications" })).toBeInTheDocument();
+      expect(fakeSupabase.rows("applications")[0]).toMatchObject({ job_id: "j1", url: job.url });
+      expect(fakeSupabase.rows("job_matches")[0].state).toBe("applied");
     });
   });
 

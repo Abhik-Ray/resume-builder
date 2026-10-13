@@ -4,7 +4,7 @@ Guidance for AI coding agents working in this repository.
 
 ## Project
 
-A React app that uses an LLM (Gemini, OpenAI or Anthropic, picked per run) to (1) judge a job description against the user's preferences and (2) rewrite resume sections for that job, then renders the resume as a PDF. Users sign in with Google through Supabase Auth; their details live in Supabase Postgres, isolated per user by Row Level Security. There is no server of our own: the browser talks to Supabase with the user's token. AI keys never leave the browser: the user saves them in Settings, stored in IndexedDB, and the browser calls the provider directly. The app is a dashboard (Home, Resume, Applications, Stats, Settings); the job review and PDF flow is the Resume module, and Applications/Stats are the tracker. Deployed to GitHub Pages under `/resume-builder/`. The plan for the backend is in issues #2–#6.
+A React app that uses an LLM (Gemini, OpenAI or Anthropic, picked per run) to (1) judge a job description against the user's preferences and (2) rewrite resume sections for that job, then renders the resume as a PDF. Users sign in with Google through Supabase Auth; their details live in Supabase Postgres, isolated per user by Row Level Security. There is no server of our own: the browser talks to Supabase with the user's token. AI keys never leave the browser: the user saves them in Settings, stored in IndexedDB, and the browser calls the provider directly. The app is a dashboard (Home, Jobs, Resume, Applications, Stats, Settings); the job review and PDF flow is the Resume module, Applications/Stats are the tracker, and Jobs is the inbox the daily job sync fills. Deployed to GitHub Pages under `/resume-builder/`. The plan for the backend is in issues #2–#6.
 
 Stack: React 19 (with React Compiler), TypeScript (strict), Vite 7, Tailwind CSS v4, shadcn/ui-style components, Vercel AI SDK v7 (`ai`, `@ai-sdk/google`, `@ai-sdk/openai`, `@ai-sdk/anthropic`), `@react-pdf/renderer`, React Router v7 (hash router), Dexie (IndexedDB, for API keys), Supabase (`@supabase/supabase-js`, Postgres, Auth), TanStack Query, react-hook-form + zod. Package manager: **pnpm**.
 
@@ -30,6 +30,7 @@ A pnpm workspace (`pnpm-workspace.yaml`); no Turborepo or Nx, `pnpm -r` and `--f
 | Package | Path | What it is |
 | --- | --- | --- |
 | `@resume-builder/web` | `apps/web` | The React app (everything under Layout below) |
+| `@resume-builder/job-sync` | `apps/job-sync` | The daily job sync (Node 22 + tsx), run by `.github/workflows/job-sync.yml` |
 | `@resume-builder/shared` | `packages/shared` | Types and zod schemas shared across apps, plus the generated database types |
 | (Supabase project) | `supabase/` | `config.toml`, SQL migrations, pgTAP tests |
 
@@ -40,7 +41,7 @@ A pnpm workspace (`pnpm-workspace.yaml`); no Turborepo or Nx, `pnpm -r` and `--f
 
 ## CI/CD
 
-`.github/workflows/ci.yml` runs lint, test and build on every pull request and push, and a `database` job that starts a local Supabase (every migration from scratch), runs the pgTAP tests and `supabase db lint`, and fails if `packages/shared/src/database.ts` is stale. On a push to `main`, the `migrate` job runs `supabase db push` against the hosted project, then a passing build (`apps/web/dist`) is deployed to GitHub Pages (Pages source: GitHub Actions). Migrations go first, so they must stay compatible with the deployed app: add columns; never rename or drop one in the same release. The build reads `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` from Actions variables; `migrate` needs the `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD` and `SUPABASE_PROJECT_ID` secrets. There is no manual deploy command: pushing to `main` publishes the live site, so don't push without being asked. Node is pinned in `.nvmrc` and pnpm in `packageManager` in the root `package.json`; CI installs with `--frozen-lockfile`, so commit `pnpm-lock.yaml` with dependency changes.
+`.github/workflows/ci.yml` runs lint, test and build on every pull request and push, and a `database` job that starts a local Supabase (every migration from scratch), runs the pgTAP tests and `supabase db lint`, and fails if `packages/shared/src/database.ts` is stale. `.github/workflows/job-sync.yml` runs the job sync daily at 00:30 UTC (06:00 IST) and on manual dispatch, with `SUPABASE_URL` (variable), `SUPABASE_SERVICE_ROLE_KEY` and each source's key (secrets; sources without one are skipped). On a push to `main`, the `migrate` job runs `supabase db push` against the hosted project, then a passing build (`apps/web/dist`) is deployed to GitHub Pages (Pages source: GitHub Actions). Migrations go first, so they must stay compatible with the deployed app: add columns; never rename or drop one in the same release. The build reads `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` from Actions variables; `migrate` needs the `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD` and `SUPABASE_PROJECT_ID` secrets. There is no manual deploy command: pushing to `main` publishes the live site, so don't push without being asked. Node is pinned in `.nvmrc` and pnpm in `packageManager` in the root `package.json`; CI installs with `--frozen-lockfile`, so commit `pnpm-lock.yaml` with dependency changes.
 
 ## Testing
 
@@ -65,7 +66,10 @@ apps/web/src/
   lib/supabase.ts       getSupabase(): the Supabase client (PKCE), created on first use
   pages/login/LoginPage.tsx   "Continue with Google"
   layouts/DashboardLayout.tsx   Sidebar nav + <Outlet/>
-  pages/HomePage.tsx    Dashboard home: stat tiles from the tracker
+  pages/HomePage.tsx    Dashboard home: stat tiles from the tracker and today's matches
+  pages/jobs/JobsPage.tsx   Matches inbox: tabs by state, judge new matches in the browser, generate a resume, mark applied
+  pages/jobs/judging.ts     judgeInBatches (a few at a time, failures collected)
+  pages/settings/JobSearchesSection.tsx   Saved searches (keywords, excludes, city, remote only, min score)
   pages/applications/ApplicationsPage.tsx   Tracker table (status dropdown, delete, resume sent); ApplicationForm.tsx is shared with the Resume flow
   pages/stats/StatsPage.tsx   Stat tiles, funnel and weekly charts, status changes; weeks.ts fills empty weeks
   components/charts/    HTML bar/column charts (tooltip + table view), StatTile, number formats
@@ -85,6 +89,8 @@ apps/web/src/
   db/resumeData.ts      resumeFromProfile and useResumeData (falls back to the defaults)
   db/applications.ts    applications CRUD + hooks; mutations refresh the list and the stats
   db/stats.ts           Reads the stats views
+  db/matches.ts         job_matches + their jobs, triage/verdict updates, latest sync run
+  db/searchProfiles.ts  search_profiles CRUD + hooks
   ResumePreview.tsx     PDFViewer wrapper, lazy-loaded by ResumeGeneratorPage
   pdf.tsx               The resume PDF layout (@react-pdf/renderer); takes the resume as a prop
   data/ResumeData.ts    DEFAULT_RESUME_DATA (seed) + toUserData/getTweakableBullets helpers
@@ -105,6 +111,15 @@ packages/shared/src/
   details.ts            Details form schema (resume data + home location) and its form values
   detailsCheck.ts       missingDetails/isDetailsComplete (zod-free) and ProfileRow
   applications.ts       APPLICATION_STATUSES (mirrors the enum, in order), labels, ResumeSnapshot, form schema
+  jobs.ts               Job/match/search types, MATCH_STATES, keyword scores, saved-search form schema
+
+apps/job-sync/src/
+  index.ts              Entry: env, Supabase service-role client, runSync, exit code
+  pipeline.ts           runSync and the SyncStore interface; store.ts is the Supabase version
+  query.ts              planQueries: one shared query per unique (keywords, location)
+  match.ts              scoreJob/matchesSearch (deterministic) and dedupeJobs
+  sources/              adzuna, jooble, jsearch: searchJobs(query) → NormalizedJob[]; http.ts validates responses
+  fixtures/             Recorded responses for the source tests
   database.ts           Generated by `pnpm db:types`; don't edit
 
 supabase/
@@ -115,7 +130,7 @@ supabase/
 
 ## Routing
 
-Hash URLs (`#/login`, `#/`, `#/resume`, `#/applications`, `#/stats`, `#/settings`, `#/settings/api-keys`, `#/settings/resume-data`) because GitHub Pages can't serve `index.html` for deep links. Add pages to `router.tsx` as `React.lazy` routes. `#/settings` shows a tile grid; each section is its own page. To add one, add a tile to `SETTINGS_SECTIONS` in `pages/settings/sections.ts` and a child route with the same id under `settings` in `router.tsx`.
+Hash URLs (`#/login`, `#/`, `#/jobs`, `#/resume`, `#/applications`, `#/stats`, `#/settings`, `#/settings/searches`, `#/settings/api-keys`, `#/settings/resume-data`) because GitHub Pages can't serve `index.html` for deep links. Add pages to `router.tsx` as `React.lazy` routes. `#/settings` shows a tile grid; each section is its own page. To add one, add a tile to `SETTINGS_SECTIONS` in `pages/settings/sections.ts` and a child route with the same id under `settings` in `router.tsx`.
 
 ## Conventions
 
@@ -129,6 +144,7 @@ Hash URLs (`#/login`, `#/`, `#/resume`, `#/applications`, `#/stats`, `#/settings
 - **Keep `@react-pdf/renderer` out of the main bundle.** Only `pdf.tsx` and `ResumePreview.tsx` may import it, and `ResumePreview` must stay behind `React.lazy`.
 - **Use relative imports.** The `@/` alias isn't wired up (see Gotchas).
 - **Application status changes are recorded by the database.** The UI only updates `applications.status`; a trigger writes `application_events` (users can't insert them) and sets `applied_at`. The stats views read the events. The status enum's declaration order is the funnel order; if you add a status, update `APPLICATION_STATUSES` too (a test checks they match).
+- **The job sync only calls official job-search APIs** (no scraping) and judges nothing: AI keys never leave the browser, so matches are judged on the Jobs page with the user's own key. Each source validates its response with zod and throws `SourceError` (never include request URLs or bodies in messages: some providers put the key in the URL). A failing source lands in `sync_runs.errors` and the others continue. Users can read jobs, matches and runs but only change a match's `state` and `verdict` (column grant); everything else is written by the service role. Job-sync tests use recorded fixtures and an in-memory `SyncStore`; never hit a real API.
 - **Charts** are plain HTML in `components/charts` with the `--viz-series` color token (light and dark validated with the dataviz skill). Every chart has hover/focus tooltips and a "Show as table" view; text uses text colors, never the series color.
 - Icons: `lucide-react`.
 - Commits follow Conventional Commits (`feat:`, `fix:`, `chore:`, `feat!:` for breaking changes).

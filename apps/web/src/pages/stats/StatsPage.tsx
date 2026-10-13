@@ -4,7 +4,7 @@ import { ColumnChart, HorizontalBarChart } from "../../components/charts/BarChar
 import { formatDays, formatPercent } from "../../components/charts/format";
 import { StatTile } from "../../components/charts/StatTile";
 import { useStats, type TransitionRow } from "../../db/stats";
-import { fillWeeks, WEEKS_SHOWN } from "./weeks";
+import { DAYS_SHOWN, fillDays, fillWeeks, WEEKS_SHOWN } from "./weeks";
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
@@ -55,6 +55,25 @@ const StatsPage = () => {
                 title={`Applications per week (last ${WEEKS_SHOWN})`}
                 unit="applications"
                 data={fillWeeks(stats.data.weekly)}
+              />
+            </div>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-lg border p-4">
+              <ColumnChart
+                title={`New job matches per day (last ${DAYS_SHOWN})`}
+                unit="matches"
+                data={fillDays(stats.data.matches)}
+              />
+            </div>
+            <div className="grid content-start gap-3 sm:grid-cols-2">
+              <StatTile
+                label="Matches judged"
+                value={String(stats.data.matches.reduce((sum, d) => sum + (d.judged ?? 0), 0))}
+              />
+              <StatTile
+                label="Matches dismissed"
+                value={String(stats.data.matches.reduce((sum, d) => sum + (d.dismissed ?? 0), 0))}
               />
             </div>
           </div>

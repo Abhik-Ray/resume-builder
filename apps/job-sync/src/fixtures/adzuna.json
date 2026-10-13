@@ -1,0 +1,26 @@
+{
+  "count": 2,
+  "mean": 1200000,
+  "results": [
+    {
+      "id": "4401234567",
+      "title": "Senior <strong>React</strong> Developer",
+      "description": "Build our TypeScript&nbsp;front end with React. Hybrid in Bengaluru.",
+      "redirect_url": "https://www.adzuna.in/land/ad/4401234567",
+      "created": "2026-10-12T05:21:00Z",
+      "company": { "display_name": "Acme Labs" },
+      "location": { "display_name": "Bengaluru, Karnataka", "area": ["India", "Karnataka", "Bengaluru"] },
+      "salary_min": 1800000,
+      "contract_time": "full_time"
+    },
+    {
+      "id": 4401234568,
+      "title": "Frontend Engineer (Remote)",
+      "description": null,
+      "redirect_url": "https://www.adzuna.in/land/ad/4401234568",
+      "created": "2026-10-11T09:00:00Z",
+      "company": {},
+      "location": { "display_name": "India" }
+    }
+  ]
+}
