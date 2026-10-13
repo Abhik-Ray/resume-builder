@@ -2,16 +2,10 @@ import { generateText, Output } from "ai";
 import { z } from "zod";
 import { getModel, temperatureFor, type AIKey } from "./aiModel";
 import type { ModelChoice } from "./models";
+import type { JobPreferences } from "@resume-builder/shared";
 
-// 1. Define the User Preferences Input Type
-export interface JobPreferences {
-  desiredRoles: string[];
-  targetSalary?: string;
-  preferredWorkModel: "Remote" | "Hybrid" | "On-site" | "Any";
-  coreTechStack: string[];
-  dealBreakers: string[]; // e.g., "Weekend work", "Legacy codebase"
-  careerGoals: string; // e.g., "Looking for mentorship", "Want to lead a team"
-}
+// 1. The User Preferences Input Type lives in the shared package
+export type { JobPreferences };
 
 const REMOTE_LEVELS = [
   "On Site",

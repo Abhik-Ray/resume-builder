@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ResumeDataType } from "../../types/input";
+import { WORK_MODELS, type ResumeDataType } from "./resumeData";
 
 const requiredText = (label: string, max = 200) =>
   z
@@ -55,8 +55,6 @@ const position = z.object({
   canTweak: z.boolean().optional(),
   projects: z.array(project).optional(),
 });
-
-export const WORK_MODELS = ["Remote", "Hybrid", "On-site", "Any"] as const;
 
 export const resumeDataSchema = z.object({
   profile: z.object({

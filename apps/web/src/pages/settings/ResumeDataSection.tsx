@@ -20,7 +20,7 @@ import {
   toFormValues,
   WORK_MODELS,
   type ResumeFormValues,
-} from "./resumeDataSchema";
+} from "@resume-builder/shared";
 
 type ResumeForm = UseFormReturn<ResumeFormValues, unknown, z.output<typeof resumeDataSchema>>;
 

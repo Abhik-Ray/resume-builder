@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_RESUME_DATA } from "../../data/ResumeData";
-import { resumeDataSchema, toFormValues, type ResumeFormValues } from "./resumeDataSchema";
+import { resumeDataSchema, toFormValues, type ResumeFormValues } from "@resume-builder/shared";
 
 const valid = () => structuredClone(toFormValues(DEFAULT_RESUME_DATA));
 

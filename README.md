@@ -21,7 +21,7 @@ Get a Gemini API key from [Google AI Studio](https://aistudio.google.com/apikey)
 
 ## Customising your data
 
-All personal content lives in one file, `src/data/ResumeData.ts`:
+All personal content lives in one file, `apps/web/src/data/ResumeData.ts`:
 
 | Field | Purpose |
 | --- | --- |
@@ -33,7 +33,7 @@ All personal content lives in one file, `src/data/ResumeData.ts`:
 
 The `userData` object the AI prompts receive is derived from this file.
 
-Model ids are set in `src/utils/models.ts`.
+Model ids are set in `apps/web/src/utils/models.ts`.
 
 ## Scripts
 
@@ -44,4 +44,6 @@ Model ids are set in `src/utils/models.ts`.
 | `pnpm lint` | Run ESLint |
 | `pnpm test` | Run the tests |
 
-Pushing to `main` deploys to GitHub Pages: the CI workflow runs lint, tests and build, then publishes `dist/`.
+Pushing to `main` deploys to GitHub Pages: the CI workflow runs lint, tests and build, then publishes `apps/web/dist/`.
+
+The repo is a pnpm workspace: the app lives in `apps/web`, and types and zod schemas shared across apps live in `packages/shared`. Run the scripts above from the root.

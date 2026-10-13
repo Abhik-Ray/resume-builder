@@ -1,20 +1,3 @@
-import type { JobPreferences } from "../utils/AIResumeJudge";
-
-export interface WorkHistory {
-  companyName: string;
-  projectName: string;
-  tasks: string[];
-}
-
-// Shape sent to the AI as candidate data
-export interface UserData {
-  currentRole: string;
-  yearsOfExperience: string;
-  requireRemote: boolean;
-  rawWorkHistory: WorkHistory[];
-  hardSkills: string[];
-}
-
 export interface Project {
   projectName: string;
   tasks: string[];
@@ -29,6 +12,17 @@ export interface Position {
   canTweak?: boolean;
   // Raw project history fed to the AI
   projects?: Project[];
+}
+
+export const WORK_MODELS = ["Remote", "Hybrid", "On-site", "Any"] as const;
+
+export interface JobPreferences {
+  desiredRoles: string[];
+  targetSalary?: string;
+  preferredWorkModel: (typeof WORK_MODELS)[number];
+  coreTechStack: string[];
+  dealBreakers: string[]; // e.g., "Weekend work", "Legacy codebase"
+  careerGoals: string; // e.g., "Looking for mentorship", "Want to lead a team"
 }
 
 export interface ResumeDataType {
