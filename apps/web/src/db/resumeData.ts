@@ -1,21 +1,22 @@
-import { useLiveQuery } from "dexie-react-hooks";
+import type { ProfileRow } from "@resume-builder/shared";
 import { DEFAULT_RESUME_DATA } from "../data/ResumeData";
 import type { ResumeDataType } from "../types/input";
-import { db } from "./db";
+import { useProfile } from "./profile";
 
-const RECORD_ID = "current";
+export interface ResumeDataState {
+  data: ResumeDataType;
+  // False while the built-in defaults are shown
+  isCustom: boolean;
+}
 
-export const saveResumeData = (data: ResumeDataType) =>
-  db.resumeData.put({ id: RECORD_ID, data, updatedAt: Date.now() });
+// The profile's resume data, or the defaults when the user hasn't saved their own
+export const resumeFromProfile = (profile: Pick<ProfileRow, "resume_data">): ResumeDataState => {
+  const saved = profile.resume_data as ResumeDataType | null;
+  return { data: saved ?? DEFAULT_RESUME_DATA, isCustom: !!saved };
+};
 
-export const resetResumeData = () => db.resumeData.delete(RECORD_ID);
-
-// Saved data, or the defaults when nothing has been saved. undefined while loading.
-export const useResumeData = () =>
-  useLiveQuery(async () => {
-    const record = await db.resumeData.get(RECORD_ID);
-    return {
-      data: record?.data ?? DEFAULT_RESUME_DATA,
-      isCustom: !!record,
-    };
-  });
+// undefined while loading. Pages that must show load errors use useProfile() directly.
+export const useResumeData = (): ResumeDataState | undefined => {
+  const { data } = useProfile();
+  return data ? resumeFromProfile(data) : undefined;
+};

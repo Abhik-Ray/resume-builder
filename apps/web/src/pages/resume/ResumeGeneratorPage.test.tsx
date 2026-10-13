@@ -3,8 +3,14 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_RESUME_DATA, toUserData } from "../../data/ResumeData";
 import { addApiKey } from "../../db/apiKeys";
-import { saveResumeData } from "../../db/resumeData";
-import { ANTHROPIC_KEY, GEMINI_KEY, renderWithRouter, resetDb } from "../../test/utils";
+import {
+  ANTHROPIC_KEY,
+  fakeSupabase,
+  GEMINI_KEY,
+  renderWithRouter,
+  resetDb,
+  seedProfile,
+} from "../../test/utils";
 import type { JudgeResponseType } from "../../utils/AIResumeJudge";
 import { MODELS } from "../../utils/models";
 import { KEY_CHOICE_STORAGE, modelChoiceStorage } from "./aiChoice";
@@ -68,6 +74,7 @@ const currentStep = () =>
 describe("ResumeGeneratorPage", () => {
   beforeEach(async () => {
     await resetDb();
+    seedProfile();
     verify.mockReset().mockResolvedValue({ status: "healthy", valid: true });
     judge.mockReset().mockResolvedValue(judgement);
     generate
@@ -119,7 +126,7 @@ describe("ResumeGeneratorPage", () => {
 
     it("reviews the job with the saved key and preferences", async () => {
       const preferences = { ...DEFAULT_RESUME_DATA.jobPreferences, careerGoals: "Lead a team" };
-      await saveResumeData({ ...DEFAULT_RESUME_DATA, jobPreferences: preferences });
+      seedProfile({}, { ...DEFAULT_RESUME_DATA, jobPreferences: preferences });
       const user = await setup();
       await reviewJob(user, "Senior React role");
 
@@ -157,7 +164,7 @@ describe("ResumeGeneratorPage", () => {
 
     it("generates the resume sections and shows the preview", async () => {
       const resume = { ...DEFAULT_RESUME_DATA, currentRole: "Tech Lead" };
-      await saveResumeData(resume);
+      seedProfile({}, resume);
       const user = await setup();
       await reviewJob(user, "JD text");
       await user.click(await screen.findByRole("button", { name: "Generate resume" }));
@@ -336,4 +343,33 @@ describe("ResumeGeneratorPage", () => {
       expect(screen.getByLabelText("AI key")).toHaveDisplayValue("Claude · Anthropic");
     });
   });
+
+  describe("details gate", () => {
+    it("asks for missing details and links to the Details page", async () => {
+      seedProfile({ home_city: null }, null);
+      const user = userEvent.setup();
+      const { router } = renderWithRouter(<ResumeGeneratorPage />, {
+        path: "/resume",
+        routes: [{ path: "/settings/resume-data", element: <p>Details page</p> }],
+      });
+      expect(
+        await screen.findByRole("heading", { name: "Finish your details to generate resumes" }),
+      ).toBeInTheDocument();
+      expect(screen.getByText(/Still needed: Name, .*Home city/)).toBeInTheDocument();
+      expect(screen.queryByLabelText("Job description")).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole("link", { name: "Go to Details" }));
+      expect(await screen.findByText("Details page")).toBeInTheDocument();
+      expect(router.state.location.search).toBe("?from=/resume");
+    });
+
+    it("shows profile load errors", async () => {
+      fakeSupabase.failNext("profiles", "network down");
+      renderWithRouter(<ResumeGeneratorPage />, { path: "/resume" });
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Couldn't load your details: network down",
+      );
+    });
+  });
 });
+

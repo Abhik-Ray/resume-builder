@@ -1,8 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ChevronDown, Loader2, Plus, Trash2 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useFieldArray, useForm, type UseFormReturn } from "react-hook-form";
-import { useBlocker } from "react-router";
+import { useBlocker, useNavigate, useSearchParams } from "react-router";
 import type { z } from "zod";
 import { Button } from "../../components/ui/button";
 import {
@@ -13,30 +13,39 @@ import {
   TextField,
 } from "../../components/form/fields";
 import { StringListField } from "../../components/form/StringListField";
-import { resetResumeData, saveResumeData, useResumeData } from "../../db/resumeData";
-import type { ResumeDataType } from "../../types/input";
+import { detailsToProfile, useProfile, useUpdateProfile } from "../../db/profile";
+import { resumeFromProfile } from "../../db/resumeData";
 import {
-  resumeDataSchema,
-  toFormValues,
+  detailsSchema,
+  missingDetails,
+  toDetailsFormValues,
   WORK_MODELS,
-  type ResumeFormValues,
+  type DetailsFormValues,
+  type ProfileRow,
 } from "@resume-builder/shared";
 
-type ResumeForm = UseFormReturn<ResumeFormValues, unknown, z.output<typeof resumeDataSchema>>;
+type ResumeForm = UseFormReturn<DetailsFormValues, unknown, z.output<typeof detailsSchema>>;
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
 const ResumeDataSection = () => {
-  const resume = useResumeData();
-  if (!resume) {
+  const profile = useProfile();
+  if (profile.isPending) {
     return (
       <div className="flex justify-center p-8">
         <Loader2 className="animate-spin" />
       </div>
     );
   }
-  return <ResumeDataForm data={resume.data} isCustom={resume.isCustom} />;
+  if (profile.isError) {
+    return (
+      <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+        Couldn't load your details: {getErrorMessage(profile.error)}
+      </p>
+    );
+  }
+  return <ResumeDataForm profile={profile.data} />;
 };
 
 export default ResumeDataSection;
@@ -45,12 +54,19 @@ export default ResumeDataSection;
 // register() calls because the form object never changes, but react-hook-form forgets its fields
 // on every reset and needs inputs to register again on the next render. With memoization,
 // "Discard changes" and "Reset to defaults" blanked the inputs and some errors never showed.
-const ResumeDataForm = ({ data, isCustom }: { data: ResumeDataType; isCustom: boolean }) => {
+const ResumeDataForm = ({ profile }: { profile: ProfileRow }) => {
   "use no memo";
+  const { data, isCustom } = resumeFromProfile(profile);
+  const missing = missingDetails(profile);
+  const updateProfile = useUpdateProfile();
+  const navigate = useNavigate();
+  // Set by pages that sent the user here to finish their details (e.g. ?from=/resume)
+  const [searchParams] = useSearchParams();
+  const returnTo = searchParams.get("from");
   const form = useForm({
-    resolver: zodResolver(resumeDataSchema),
+    resolver: zodResolver(detailsSchema),
     // Re-syncs the form when the saved data changes (save, reset to defaults)
-    values: toFormValues(data),
+    values: toDetailsFormValues(data, profile),
     mode: "onChange",
   });
   const {
@@ -64,9 +80,11 @@ const ResumeDataForm = ({ data, isCustom }: { data: ResumeDataType; isCustom: bo
   const [isResetting, setIsResetting] = useState(false);
 
   // Warn before leaving the page with unsaved edits
+  // Set right before leaving after a save, when isDirty may not have caught up yet
+  const leavingAfterSave = useRef(false);
   const blocker = useBlocker(
     ({ currentLocation, nextLocation }) =>
-      isDirty && currentLocation.pathname !== nextLocation.pathname,
+      isDirty && !leavingAfterSave.current && currentLocation.pathname !== nextLocation.pathname,
   );
   useEffect(() => {
     if (blocker.state !== "blocked") return;
@@ -77,8 +95,13 @@ const ResumeDataForm = ({ data, isCustom }: { data: ResumeDataType; isCustom: bo
   const onSubmit = handleSubmit(async (values) => {
     setStatus(null);
     try {
-      await saveResumeData(values);
+      const saved = await updateProfile.mutateAsync(detailsToProfile(values));
       setStatus({ type: "success", message: "Resume data saved" });
+      // Only same-app paths, so the parameter can't send the user elsewhere
+      if (saved.details_completed_at && returnTo?.startsWith("/")) {
+        leavingAfterSave.current = true;
+        navigate(returnTo);
+      }
     } catch (error) {
       setStatus({ type: "error", message: `Save failed: ${getErrorMessage(error)}` });
     }
@@ -89,7 +112,7 @@ const ResumeDataForm = ({ data, isCustom }: { data: ResumeDataType; isCustom: bo
     setStatus(null);
     setIsResetting(true);
     try {
-      await resetResumeData();
+      await updateProfile.mutateAsync({ resume_data: null, details_completed_at: null });
       setStatus({ type: "success", message: "Restored the default resume data" });
     } catch (error) {
       setStatus({ type: "error", message: `Reset failed: ${getErrorMessage(error)}` });
@@ -135,6 +158,15 @@ const ResumeDataForm = ({ data, isCustom }: { data: ResumeDataType; isCustom: bo
           Save
         </Button>
       </div>
+      {missing.length > 0 && (
+        <div
+          role="note"
+          className="rounded-md border border-amber-500 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-500/60 dark:bg-amber-950/40 dark:text-amber-300"
+        >
+          <p className="font-semibold">Fill in your details to get started.</p>
+          <p>Still needed: {missing.join(", ")}.</p>
+        </div>
+      )}
       {status && (
         <p
           role="status"
@@ -149,6 +181,7 @@ const ResumeDataForm = ({ data, isCustom }: { data: ResumeDataType; isCustom: bo
       )}
 
       <ProfileSection form={form} />
+      <HomeLocationSection form={form} />
       <CareerSection form={form} />
       <SkillsSection form={form} />
       <ExperienceSection form={form} />
@@ -201,6 +234,47 @@ const ProfileSection = ({ form }: { form: ResumeForm }) => {
           error={errors.profile?.education?.field?.message}
         />
       </div>
+    </Section>
+  );
+};
+
+const HomeLocationSection = ({ form }: { form: ResumeForm }) => {
+  "use no memo"; // see the note above ResumeDataForm
+  const {
+    register,
+    formState: { errors },
+  } = form;
+  const homeErrors = errors.home;
+  return (
+    <Section title="Home location">
+      <p className="text-xs text-muted-foreground">Job search looks for openings near here.</p>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <TextField label="City" {...register("home.city")} error={homeErrors?.city?.message} />
+        <TextField
+          label="Region (optional)"
+          placeholder="State or province"
+          {...register("home.region")}
+          error={homeErrors?.region?.message}
+        />
+        <TextField
+          label="Country code"
+          placeholder="IN"
+          maxLength={2}
+          autoCapitalize="characters"
+          {...register("home.country")}
+          error={homeErrors?.country?.message}
+        />
+      </div>
+      <TextField
+        className="sm:w-1/3"
+        label="Search radius (km)"
+        type="number"
+        min={1}
+        max={500}
+        {...register("home.searchRadiusKm", { valueAsNumber: true })}
+        error={homeErrors?.searchRadiusKm?.message}
+      />
+      <CheckboxField label="Include remote jobs" {...register("home.includeRemote")} />
     </Section>
   );
 };

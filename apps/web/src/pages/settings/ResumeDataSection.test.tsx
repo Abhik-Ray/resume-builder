@@ -2,9 +2,7 @@ import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_RESUME_DATA } from "../../data/ResumeData";
-import { db } from "../../db/db";
-import { saveResumeData } from "../../db/resumeData";
-import { renderWithRouter, resetDb } from "../../test/utils";
+import { fakeSupabase, profileRow, renderWithRouter, seedProfile } from "../../test/utils";
 import ResumeDataSection from "./ResumeDataSection";
 
 const setup = async () => {
@@ -17,10 +15,12 @@ const setup = async () => {
 };
 
 const saveButton = () => screen.getByRole("button", { name: "Save" });
-const savedRecord = () => db.resumeData.get("current");
+// Saved resume data, or null when on the defaults
+const savedData = () => profileRow()?.resume_data as typeof DEFAULT_RESUME_DATA | null;
 
 describe("ResumeDataSection", () => {
-  beforeEach(resetDb);
+  // Home location filled in; resume data still the built-in defaults
+  beforeEach(() => seedProfile({}, null));
 
   it("loads the default data into the form", async () => {
     await setup();
@@ -32,7 +32,7 @@ describe("ResumeDataSection", () => {
   });
 
   it("loads saved data when there is some", async () => {
-    await saveResumeData({ ...DEFAULT_RESUME_DATA, currentRole: "Staff Engineer" });
+    seedProfile({}, { ...DEFAULT_RESUME_DATA, currentRole: "Staff Engineer" });
     await setup();
     expect(screen.getByText("Using your saved data")).toBeInTheDocument();
     expect(screen.getByLabelText("Current role")).toHaveValue("Staff Engineer");
@@ -66,9 +66,8 @@ describe("ResumeDataSection", () => {
     await user.click(saveButton());
 
     expect(await screen.findByText("Resume data saved")).toBeInTheDocument();
-    const record = await savedRecord();
-    expect(record?.data.currentRole).toBe("Tech Lead");
-    expect(record?.data.profile.contacts.at(-1)).toBe("github.com/jane");
+    expect(savedData()?.currentRole).toBe("Tech Lead");
+    expect(savedData()?.profile.contacts.at(-1)).toBe("github.com/jane");
     await waitFor(() => expect(screen.getByText("Using your saved data")).toBeInTheDocument());
     await waitFor(() => expect(saveButton()).toBeDisabled());
   });
@@ -129,13 +128,13 @@ describe("ResumeDataSection", () => {
   });
 
   it("resets saved data to the defaults after confirmation", async () => {
-    await saveResumeData({ ...DEFAULT_RESUME_DATA, currentRole: "Staff Engineer" });
+    seedProfile({}, { ...DEFAULT_RESUME_DATA, currentRole: "Staff Engineer" });
     vi.spyOn(window, "confirm").mockReturnValue(true);
     const { user } = await setup();
     await user.click(screen.getByRole("button", { name: "Reset to defaults" }));
 
     expect(await screen.findByText("Restored the default resume data")).toBeInTheDocument();
-    expect(await savedRecord()).toBeUndefined();
+    expect(savedData()).toBeNull();
     await waitFor(() =>
       expect(screen.getByLabelText("Current role")).toHaveValue(DEFAULT_RESUME_DATA.currentRole),
     );
@@ -170,4 +169,94 @@ describe("ResumeDataSection", () => {
     expect(confirm).not.toHaveBeenCalled();
     expect(router.state.location.pathname).toBe("/elsewhere");
   });
+
+  describe("home location and the details prompt", () => {
+    it("shows the home location from the profile", async () => {
+      seedProfile({ home_city: "Pune", home_region: "MH", search_radius_km: 25, include_remote: false });
+      await setup();
+      expect(screen.getByLabelText("City")).toHaveValue("Pune");
+      expect(screen.getByLabelText("Region (optional)")).toHaveValue("MH");
+      expect(screen.getByLabelText("Country code")).toHaveValue("IN");
+      expect(screen.getByLabelText("Search radius (km)")).toHaveValue(25);
+      expect(screen.getByLabelText("Include remote jobs")).not.toBeChecked();
+    });
+
+    it("asks for missing details with a banner", async () => {
+      seedProfile({ home_city: null, home_country: null, details_completed_at: null }, null);
+      await setup();
+      const banner = screen.getByRole("note");
+      expect(banner).toHaveTextContent("Fill in your details to get started.");
+      expect(banner).toHaveTextContent("Home city");
+      expect(banner).toHaveTextContent("Name");
+    });
+
+    it("saves the home location and clears the banner once complete", async () => {
+      seedProfile({ home_city: null, home_country: null, details_completed_at: null }, null);
+      const { user } = await setup();
+      await user.type(screen.getByLabelText("City"), "Hyderabad");
+      await user.type(screen.getByLabelText("Country code"), "in");
+      await user.clear(screen.getByLabelText("Search radius (km)"));
+      await user.type(screen.getByLabelText("Search radius (km)"), "80");
+      await waitFor(() => expect(saveButton()).toBeEnabled());
+      await user.click(saveButton());
+
+      expect(await screen.findByText("Resume data saved")).toBeInTheDocument();
+      expect(profileRow()).toMatchObject({
+        home_city: "Hyderabad",
+        home_country: "IN",
+        search_radius_km: 80,
+        resume_data: DEFAULT_RESUME_DATA,
+        details_completed_at: expect.any(String),
+      });
+      await waitFor(() => expect(screen.queryByRole("note")).not.toBeInTheDocument());
+    });
+
+    it("validates the home location", async () => {
+      const { user } = await setup();
+      await user.clear(screen.getByLabelText("City"));
+      await user.clear(screen.getByLabelText("Country code"));
+      await user.type(screen.getByLabelText("Country code"), "1");
+      await user.clear(screen.getByLabelText("Search radius (km)"));
+      await user.type(screen.getByLabelText("Search radius (km)"), "900");
+
+      expect(await screen.findByText("City is required")).toBeInTheDocument();
+      expect(screen.getByText("Use the two-letter country code, e.g. IN")).toBeInTheDocument();
+      expect(screen.getByText("At most 500 km")).toBeInTheDocument();
+      expect(saveButton()).toBeDisabled();
+    });
+
+    it("returns to the page that sent the user here after saving complete details", async () => {
+      seedProfile({ home_city: null, details_completed_at: null }, null);
+      const user = userEvent.setup();
+      const { router } = renderWithRouter(<ResumeDataSection />, {
+        path: "/settings/resume-data",
+        routes: [{ path: "/resume", element: <p>Resume page</p> }],
+      });
+      await router.navigate("/settings/resume-data?from=/resume");
+      await user.type(await screen.findByLabelText("City"), "Kochi");
+      await waitFor(() => expect(saveButton()).toBeEnabled());
+      await user.click(saveButton());
+
+      expect(await screen.findByText("Resume page")).toBeInTheDocument();
+    });
+
+    it("shows load errors", async () => {
+      fakeSupabase.failNext("profiles", "network down");
+      renderWithRouter(<ResumeDataSection />, { path: "/settings/resume-data" });
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Couldn't load your details: network down",
+      );
+    });
+
+    it("shows save errors", async () => {
+      const { user } = await setup();
+      await user.type(screen.getByLabelText("Name"), " Jr");
+      await waitFor(() => expect(saveButton()).toBeEnabled());
+      fakeSupabase.failNext("profiles", "write refused");
+      await user.click(saveButton());
+      expect(await screen.findByText("Save failed: write refused")).toBeInTheDocument();
+      expect(saveButton()).toBeEnabled();
+    });
+  });
 });
+

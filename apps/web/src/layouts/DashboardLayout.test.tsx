@@ -2,18 +2,24 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { describe, expect, it } from "vitest";
+import { AppProviders } from "../auth/AppProviders";
 import { DashboardLayout } from "./DashboardLayout";
 
 const renderAt = (path: string) => {
   const router = createMemoryRouter(
     [
       {
-        path: "/",
-        element: <DashboardLayout />,
+        element: <AppProviders />,
         children: [
-          { index: true, element: <p>Home content</p> },
-          { path: "resume", element: <p>Resume content</p> },
-          { path: "settings/*", element: <p>Settings content</p> },
+          {
+            path: "/",
+            element: <DashboardLayout />,
+            children: [
+              { index: true, element: <p>Home content</p> },
+              { path: "resume", element: <p>Resume content</p> },
+              { path: "settings/*", element: <p>Settings content</p> },
+            ],
+          },
         ],
       },
     ],
