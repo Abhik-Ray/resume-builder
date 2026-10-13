@@ -19,6 +19,21 @@ pnpm dev
 
 Get a Gemini API key from [Google AI Studio](https://aistudio.google.com/apikey).
 
+## Sign-in and data (Supabase)
+
+Users sign in with Google through Supabase Auth, and their details (resume data and home location) are stored in Supabase Postgres, readable only by them. AI keys stay in the browser.
+
+Local development:
+
+```bash
+pnpm supabase start                       # local Supabase in Docker; prints the URL and publishable key
+cp apps/web/.env.example apps/web/.env.local   # fill in the values it printed
+cp supabase/.env.example supabase/.env         # Google OAuth client id and secret
+pnpm dev
+```
+
+Database changes are SQL migrations in `supabase/migrations`, with pgTAP tests in `supabase/tests/database` (`pnpm supabase test db`). After changing the schema, run `pnpm db:types`.
+
 ## Customising your data
 
 All personal content lives in one file, `apps/web/src/data/ResumeData.ts`:

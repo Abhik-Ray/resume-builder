@@ -8,7 +8,10 @@ import { Button } from "../../components/ui/button";
 import { SelectField, TextAreaField } from "../../components/form/fields";
 import { generateResumeSection } from "../../utils/AIResumeBuilder";
 import { getTweakableBullets, toUserData } from "../../data/ResumeData";
-import { useResumeData } from "../../db/resumeData";
+import { resumeFromProfile } from "../../db/resumeData";
+import { useProfile } from "../../db/profile";
+import { missingDetails } from "@resume-builder/shared";
+import { DETAILS_PATH } from "../../auth/RequireAuth";
 import { useApiKeys } from "../../db/apiKeys";
 import type { ApiKeyRecord } from "../../db/db";
 import type { ResumeDataType } from "../../types/input";
@@ -40,16 +43,43 @@ const Spinner = () => (
 );
 
 const ResumeGeneratorPage = () => {
-  const resume = useResumeData();
+  const profile = useProfile();
   const keys = useApiKeys();
+
+  const content = () => {
+    if (profile.isError) {
+      return (
+        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+          Couldn't load your details: {getErrorMessage(profile.error)}
+        </p>
+      );
+    }
+    if (profile.isPending || !keys) return <Spinner />;
+    const missing = missingDetails(profile.data);
+    if (missing.length > 0) return <FinishDetails missing={missing} />;
+    return <ResumeGenerator resume={resumeFromProfile(profile.data).data} keys={keys} />;
+  };
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 p-4">
       <h1 className="text-lg font-semibold">Resume</h1>
-      {!resume || !keys ? <Spinner /> : <ResumeGenerator resume={resume.data} keys={keys} />}
+      {content()}
     </div>
   );
 };
+
+// The AI needs these details; saving them on the Details page comes back here
+const FinishDetails = ({ missing }: { missing: string[] }) => (
+  <div className="flex flex-col items-start gap-3 rounded-lg border p-4">
+    <div>
+      <h2 className="font-semibold">Finish your details to generate resumes</h2>
+      <p className="text-sm text-muted-foreground">Still needed: {missing.join(", ")}.</p>
+    </div>
+    <Button asChild className="rounded-md">
+      <Link to={`${DETAILS_PATH}?from=/resume`}>Go to Details</Link>
+    </Button>
+  </div>
+);
 
 export default ResumeGeneratorPage;
 
